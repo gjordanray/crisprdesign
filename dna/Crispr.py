@@ -40,25 +40,24 @@ def bowtie_search( sgrna_list ): # returns dictionary of {protospacer+pam: Genom
 	for sg in sgrna_list:
 		phred33String = '++++++++44444=======!4I'
 		protospacerpam = sg.build_protospacerpam()
-		if len( phred33String ) > len( protospacerpam ): # probably just missing the pam
+		if sg.pam == "": # missing PAM
 			phred33String = phred33String[:-3]
-		if len( phred33String ) != len( protospacerpam ):
-			print "Can't figure out phred33String to use! Check manually."
-			print "%s %s" % (phred33String, protospacerpam)
-			return None
+		if len(phred33String) > len(protospacerpam):
+			while len( phred33String ) > len( protospacerpam ):
+				phred33String = phred33String[1:] # try removing from the 5' end
+			if (len( phred33String ) < 18) or (len( protospacerpam) != len( phred33String )): # protospacer shorter than a 18mer usually doesn't make sense
+				print "Can't figure out phred33String to use! Check manually."
+				print "%s %s %s" % (phred33String, protospacerpam, sg.protospacer)
+				return None
+		elif len(phred33String) < len(protospacerpam): # prepend a 0-penalty character
+			while len( phred33String ) < len( protospacerpam ):
+				phred33String = "+"+phred33String
+			if (len( phred33String ) > 40) or (len( protospacerpam) != len( phred33String )): # protospacer longer than a 40mer usually doesn't make sense
+				print "Can't figure out phred33String to use! Check manually."
+				print "%s %s %s" % (phred33String, protospacerpam, sg.protospacer)
+				return None
 		assert( len( protospacerpam) == len( phred33String ) )
 		temp_bowtiein.write('@'+str(i)+'\n')
-#		start = sg.target_seq.find( sg.protospacer.back_transcribe() )
-#		if start != -1: # found protospacer in top strand of target_seq
-#			end = start+len(sg.protospacer)+3
-#		else:
-#			start = sg.target_seq.find( sg.protospacer.back_transcribe() )-3
-#		if start != -1: # found protospacer in bottom strand of target_seq
-#			end = start+len(sg.protospacer)+3
-#		else:
-#			print "Could not find protospacer in target sequence!"
-#			print sg.protospacer, sg.target_seq
-#			return []
 		#print sg.build_protospacerpam()
 		temp_bowtiein.write( str(protospacerpam)+'\n')			
 		temp_bowtiein.write('+\n')
@@ -70,7 +69,6 @@ def bowtie_search( sgrna_list ): # returns dictionary of {protospacer+pam: Genom
 	bowtie_cmdline = list(bowtie_constant_options)
 	bowtie_cmdline.append(temp_bowtiein.name)
 	bowtie_cmdline.append(temp_bowtieout.name)
-#	bowtie_cmdline.append(temp_bowtieout)
 	subprocess.call( bowtie_cmdline ) #, stdout=open(os.devnull, 'wb'), stderr=open(os.devnull, 'wb') )
 	temp_bowtiein.close() # remove tempfiles
 
@@ -89,22 +87,41 @@ def bowtie_search( sgrna_list ): # returns dictionary of {protospacer+pam: Genom
 	#print found_locations
 	return found_locations
 
+def _read_ccds( fname ):
+	fhandle = open( fname, "rU" )
+	genes = []
+	for line in fhandle:
+		split = line.split('\t')
+		if split[0] == "#chromosome":
+			continue
+		# format is    chromosome	nc_accession	gene	gene_id	ccds_id	ccds_status	cds_strand	cds_from(0-index)	cds_to(0-index)	cds_locations	match_type
+		if split[5].split(",")[0] == "Withdrawn":
+			continue
+		if split[10].rstrip() == "Partial":
+			continue
+#		print split[2], split[0], split[6], long(split[7])+1, long(split[8])+1
+		genes.append( [split[2], split[0], split[6], long(split[7])+1, long(split[8])+1] ) # genes container now holds: geneid, chr, strand, txStart, txEnd (tx sites +1 to conform to UCSC 1-based index)
+	fhandle.close()
+	return genes
+
 def _read_refgene( fname ):
 	fhandle = open( fname, "rU" )
 	genes=[]
 	for line in fhandle:
 		split = line.split('\t')
 		# format is    bin name chr strand txStart txEnd cdsStart cdsEnd
-	#	genes.setdefault( split[1], (split[2], split[3], long(split[4]), long(split[5])) # genes container now holds:  chr strand txStart txEnd
 		genes.append( [split[1], split[2], split[3], long(split[4]), long(split[5])] ) # genes container now holds: geneid, chr, strand, txStart, txend
 	fhandle.close()
 	return genes
 
-def find_offtargets( sgrna_list ):
+def find_offtargets( sgrna_list, genelist="refgene" ):
 	# run bowtie for protospacer, including PAM
 	genomic_sites = bowtie_search( sgrna_list )
 	# offtargets are everything that's not the target_site
-	refgene = _read_refgene( "refGene.hg19.clean.sorted.txt" )
+	if genelist=="refgene":
+		genes = _read_refgene( "refGene.hg19.clean.sorted.txt" )
+	elif genelist=="ccds":
+		genes = _read_ccds( "CCDS.20140807.txt" )
 	for sg in sgrna_list:
 		protospacerpam = str( sg.build_protospacerpam() )
 		if protospacerpam in genomic_sites.keys():
@@ -119,7 +136,7 @@ def find_offtargets( sgrna_list ):
 		for site in offsites:
 			gene_dict.setdefault(site,[])
 			# read refGene, find chromosome, is this index in a gene?
-			for gene in refgene:
+			for gene in genes:
 				rg_gene, rg_chr, rg_start, rg_end = gene[0], gene[1], gene[3], gene[4]
 				if rg_chr == site.chr:
 					if n_in_range( site.start, rg_start, rg_end) or n_in_range( site.end, rg_start, rg_end):
@@ -131,9 +148,6 @@ def find_offtargets( sgrna_list ):
 		for k,v in gene_dict.items():
 			print k, v
 		print
-#			else:
-#				print "Found target site!"
-
 
 class GenomicLocation:
 	def __init__(self, chr, start, end, strand):
@@ -160,9 +174,8 @@ class HrTemplate:
 		self.target_site = None # GenomicLocation object
 		self.target_seq = None # genomic sequence of the region this template targets (not necessarily identical to seq of template)
 		self.frame = 1 # can be +1, +2, +3, -1, -2, -3, or 0 (non-coding)
-		self.model_pam = "NGG"
 	def __eq__(self, other):
-		return (( self.seq, self.target_location, self.target_seq, self.frame, self.model_pam ) == (other.seq, other.target_location, other.target_seq, other.frame, other.model_pam))
+		return (( self.seq, self.target_location, self.target_seq, self.frame ) == (other.seq, other.target_location, other.target_seq, other.frame ))
 	def __ne__(self, other):
 		return not self == other
 
@@ -185,7 +198,11 @@ class HrTemplate:
 				min_stops = reverse_stops
 				
 	def remove_pam( self, sgrna ):
-		possible_bases = ["A", "T", "C"]
+		# find location based on genomic sequence we're targeting
+		# then perform mutation based on existing HR template
+		# this allows mutations in HR template, serial removal of multiple PAMs, etc.
+		possible_bases3 = ["A", "T", "C"] # 3rd base of pam
+		possible_bases2 = ["T", "C" ] # 2nd base of pam
 		protospacer = sgrna.protospacer.back_transcribe()
 		sgrna_template_index = self.target_seq.find( protospacer )
 		if sgrna_template_index != -1:
@@ -199,51 +216,42 @@ class HrTemplate:
 			return False
 		# print "Strand %s" % strand
 		if strand == "-":
-			pam_indices = range(sgrna_template_index-3, sgrna_template_index-1) # only get the last two bases of the PAM
+			pos3, pos2 = range(sgrna_template_index-3, sgrna_template_index-1) # only get the last two bases of the PAM
 		else:
-			pam_indices = range(sgrna_template_index + len(protospacer)+1, sgrna_template_index + len(protospacer)+3) # only get the last 2 bases of the PAM
-		if strand == "+":
-			pam_indices.reverse() # we want to start with the last base
+			pos2,pos3 = range(sgrna_template_index + len(protospacer)+1, sgrna_template_index + len(protospacer)+3) # only get the last 2 bases of the PAM
+		# from here on, whether + or - strand, pam_indices order is [pos2,pos3]
 		# print pam_indices
 		if self.frame == 0: # if we're in a noncoding region, replace with a randomly allowed base
-			base = random.choice(possible_bases)
-			seq_copy = self.seq[:pam_indices[0]] + base + self.seq[pam_indices[0]+1:]
+			base = random.choice(possible_bases3)
+			seq_copy = self.seq[:pos3] + base + self.seq[pos3+1:]
 			self.seq = seq_copy
 			return True
 		else:	# if we're in a coding region, possible_bases is shuffled and we iterate
-			random.shuffle( possible_bases )
-			random.shuffle( possible_bases )
-			for i in pam_indices:
-				#print i, self.seq[i]
-				for base in possible_bases:
-					if base != self.seq[i]:
-						seq_copy = self.seq[:i] + base + self.seq[i+1:]
-						if self.frame < 1: 
-							test_translation = seq_copy.reverse_complement()[abs(self.frame)-1:].translate()
-							ref_translation = self.seq.reverse_complement()[abs(self.frame)-1:].translate()
-						else:
-							test_translation = seq_copy[self.frame-1:].translate()
-							ref_translation = self.seq[self.frame-1:].translate()
-						#print i
-						#print test_translation
-						#print ref_translation
-						#print
-						if str(test_translation) == str(ref_translation):
-							print "Found identical translations for frame %s" % self.frame
-							#print self.seq
-							#print seq_copy
-							self.seq = seq_copy
-							return True
+			random.shuffle( possible_bases3 )
+			random.shuffle( possible_bases3 )
+			#print i, self.seq[i]
+			possible_bases2.insert(0, self.seq[ pos2 ] ) # add existing 2nd PAM base to the list. that way we start with identity at pos2 and vary pos3, then move on to varying both
+			for base2 in possible_bases2:
+				for base3 in possible_bases3:
+					seq_copy = self.seq[:pos2] + base2 + base3 + self.seq[pos3+1:]
+					if self.frame < 1: 
+						test_translation = seq_copy.reverse_complement()[abs(self.frame)-1:].translate()
+						ref_translation = self.seq.reverse_complement()[abs(self.frame)-1:].translate()
+					else:
+						test_translation = seq_copy[self.frame-1:].translate()
+						ref_translation = self.seq[self.frame-1:].translate()
+					#print i
+					#print test_translation
+					#print ref_translation
+					#print
+					if str(test_translation) == str(ref_translation):
+						print "Found identical translations for frame %s" % self.frame
+						#print self.seq
+						#print seq_copy
+						self.seq = seq_copy
+						return True
 		#print "Could not remove PAM!"
-		return False
-#		print pam_indices
-#	 	for index in pam_indices:
-#	 		print self.seq[index]
-#		pam = pam_region[2:4]
-#		codon = Seq.translate( pam )
-#		while pam == self.model_pam:
-#			if self.frame == "+3" or "-1": # can't change the PAM, since it's the first base of a codon
-#				return False				
+		return False			
 
 class SgRna:
 	# instance variables
@@ -257,11 +265,11 @@ class SgRna:
 		self.target_site = None # will eventually become a GenomicLocation. strand (+ means sgrna seq same as + strand, - means sgrna seq same as - strand), 
 		self.target_seq = "" # 10 bases on either side of site
 		self.offtarget_sites = {} # dict, format = {GenomicLocation: [gene1, gene2, gene3...]}
-		self.model_pam = "NGG"
+		self.pam = ""
 		self.constant_region = Seq( constant_region, generic_rna )
 		self.constant_secstruct, self.constant_stability = RNA.fold( str( self.constant_region ))
 	def __eq__( self, other ):
-		return( (self.protospacer, self.target_site, self.target_seq, self.offtarget_sites, self.model_pam, self.constant_region, self.constant_secstruct, self.constant_stability) == (other.protospacer, other.target_site, other.target_seq, other.offtarget_sites, other.model_pam, other.constant_region, other.constant_secstruct, other.constant_stability))
+		return( (self.protospacer, self.target_site, self.target_seq, self.offtarget_sites, self.constant_region, self.constant_secstruct, self.constant_stability) == (other.protospacer, other.target_site, other.target_seq, other.offtarget_sites, other.constant_region, other.constant_secstruct, other.constant_stability))
 	def __ne__( self, other ):
 		return not self == other
 			
@@ -272,21 +280,28 @@ class SgRna:
 		return fullseq
 	
 	def build_protospacerpam( self ): # returns DNA
+		p = self.protospacer.back_transcribe()
+		if self.pam != "":
+			return Seq( str(p)+str(self.pam), generic_dna )
 		if self.target_seq == "":
 			print "Can't build PAM without sequence context. Defaulting to protospacer %s" % self.protospacer.back_transcribe()
 			return self.protospacer.back_transcribe()
-		temp_target = self.target_seq
-		p = self.protospacer.back_transcribe()
-		index = temp_target.find( p )
-		if index == -1:
-			temp_target = temp_target.reverse_complement()
+		else:
+			temp_target = self.target_seq
 			index = temp_target.find( p )
-		if index == -1:
-			print "Can't find protospacer in target sequence"
-			# print p, temp_target
-			return ""
-		pam = temp_target[ index+len(p):index+len(p)+len(self.model_pam) ]
-		return Seq( str(p)+str(pam), generic_dna )
+			if index == -1:
+				temp_target = temp_target.reverse_complement()
+				index = temp_target.find( p )
+			if index == -1:
+				print "Can't find protospacer in target sequence"
+				# print p, temp_target
+				return ""
+			if self.pam != "":
+				pam = self.pam
+			else:
+				pam = temp_target[ index+len(p):index+len(p)+len(self.pam) ]
+				self.pam = pam
+			return Seq( str(p)+str(self.pam), generic_dna )
 	
 	def score(self):
 		print "Scoring sgrna %s" % self.protospacer
@@ -299,9 +314,7 @@ class SgRna:
 		# +X^2, where X is stability of secondary structure in the protospacer 
 		#	(squaring gives reasonably bigger penalties for stability and takes care of negatives)
 		# (below are optional, if genomic context and offtarget sites are defined)
-		# +20 if 2nd base in PAM is A instead of G
 		# +10 for each 3' G in a row after the PAM
-		# +25 if not in DNAse hypersensitive site (TODO cutoff)
 		# +25 for each offtarget site that passed bowtie filters
 		# 	or +100 for each gene (refGene) that offtarget site was in
 		# +20 if no microhomology found
@@ -344,7 +357,7 @@ class SgRna:
 					for offtgt in self.offtarget_sites[offsite]:
 						print "%s " % offtgt,
 					print
-					score += num_offtarget_genes * 100
+					score += num_offtarget_genes * 1000
 				else:
 					score += 25
 		# penalize based on facts  about the site targeted in the genome
@@ -360,15 +373,15 @@ class SgRna:
 				return score
 			grna_local_index = downstream_seq.find( p )
 			downstream_seq = downstream_seq[grna_local_index + len(self.protospacer):] # everything after the sgrna
-			pam = downstream_seq[:3]
-			print "model PAM %s | PAM %s" % (self.model_pam, pam)
-			if pam[1] != self.model_pam[1]:
-				score += 20
-			if pam[2] != self.model_pam[2]:
-				score += 10000 # something is wrong... last base should always match
+#			pam = downstream_seq[:3]
+#			print "model PAM %s | PAM %s" % (self.model_pam, self.pam)
+#			if pam[1] != self.model_pam[1]:
+#				score += 20
+#			if pam[2] != self.model_pam[2]:
+#				score += 10000 # something is wrong... last base should always match
 			# penalize G homopolymers after the PAM
 			i=0
-			for base in downstream_seq[len(pam):]:
+			for base in downstream_seq[len(self.pam):]:
 				if base == "G":
 					i+=1
 					score += 10
