@@ -127,13 +127,16 @@ def find_offtargets( sgrna_list, genelist="refgene" ):
 		if protospacerpam in genomic_sites.keys():
 			offsites = genomic_sites[protospacerpam]
 		else:
+			print "Could not find any genomic sites for %s" % protospacerpam
 			continue # we didn't find this (only happens if you called a protospacer that doesn't have a genomic match)
+		print "Off targets and associated genes for %s:" % protospacerpam
 		if not sg.target_site:
 			sg.target_site = offsites[0]
 			#print "target %s" % sg.target_site
-		offsites.remove( sg.target_site ) # this one should be the target
+		offsites.remove( sg.target_site ) # first one found should be the target
 		gene_dict = {}
 		for site in offsites:
+			print site,
 			gene_dict.setdefault(site,[])
 			# read refGene, find chromosome, is this index in a gene?
 			for gene in genes:
@@ -142,12 +145,14 @@ def find_offtargets( sgrna_list, genelist="refgene" ):
 					if n_in_range( site.start, rg_start, rg_end) or n_in_range( site.end, rg_start, rg_end):
 						if site in gene_dict.keys():
 							gene_dict[site].append( rg_gene )
+							print rg_gene,
 							#print site, rg_gene
+			print
 		sg.offtarget_sites = gene_dict
-		print "Off targets and associated genes for %s:" % protospacerpam
-		for k,v in gene_dict.items():
-			print k, v
 		print
+#		for k,v in gene_dict.items():
+#			print k, v
+#		print
 
 class GenomicLocation:
 	def __init__(self, chr, start, end, strand):
