@@ -322,7 +322,9 @@ class SgRna:
 		# +10 for each 3' G in a row after the PAM
 		# +25 for each offtarget site that passed bowtie filters
 		# 	or +100 for each gene (refGene) that offtarget site was in
-		# +20 if no microhomology found
+		# +10 if last base before PAM is C (Doench et al Nat Biotech 2014)
+		# -5 if last base before PAM is G (Doench et al Nat Biotech 2014)
+		# +20 if no microhomology found TODO
 		# ----
 		# penalize secondary structure in the protospacer sequence
 		secstruct, stability = RNA.fold( str(self.protospacer) )
@@ -334,6 +336,11 @@ class SgRna:
 			print "constant  secstruct %s" % self.constant_secstruct
 			print "+guide    secstruct %s" % full_secstruct[-len(self.constant_secstruct):]
 			score += hamming_dist( full_secstruct[-len(self.constant_secstruct):], self.constant_secstruct )
+		# penalize for sequences adjacent PAM
+		if self.protospacer[:-1] == "C":
+			score += 10
+		elif self.protospacer[:-1] == "G":
+			score -= 5
 		# penalize homoX (3+), especially homoU (pol III terminator)
 		matches = re.finditer(r'(?=((\w)\2{2}))', str(self.protospacer)) #
 		for match in matches:
