@@ -6,6 +6,7 @@ import tempfile
 import subprocess
 import re
 import random
+import sys
 
 def n_in_range( n, range1, range2 ):
 	if (n >= range1) and (n <= range2):
@@ -23,7 +24,6 @@ def hamming_dist( str1, str2 ):
 def GCcontent( seq ):
 	GC = (seq.count("G") + seq.count("C")) / float(len(seq))
 	return GC
-
 
 def bowtie_search( sgrna_list ): # returns dictionary of {protospacer+pam: GenomicLocations}
 #	for sg in sgrna_list:
@@ -72,12 +72,14 @@ def bowtie_search( sgrna_list ): # returns dictionary of {protospacer+pam: Genom
 	subprocess.call( bowtie_cmdline ) #, stdout=open(os.devnull, 'wb'), stderr=open(os.devnull, 'wb') )
 	temp_bowtiein.close() # remove tempfiles
 
-	print "Parsing bowtie output...",
+	print "Parsing bowtie output",
+	sys.stdout.flush()
 	found_locations = {}
-	i = 1
+	i = 0
 	for line in temp_bowtieout:
 		if i % 10000 == 0:
 			print ".",
+			sys.stdout.flush()
 		l = line.strip().split('\t')
 		s = Seq( l[3], generic_dna )
 		loc = GenomicLocation( l[1], long(l[2]), long(l[2])+len(s), l[0] ) # format of bowtie output is strand, chr, start, sequence of read (revcomp if - strand mapped)
@@ -87,6 +89,7 @@ def bowtie_search( sgrna_list ): # returns dictionary of {protospacer+pam: Genom
 			found_locations[str(s)].append( loc )
 		else:
 			found_locations.setdefault( str(s), [loc] ) # need to convert back to string for proper key referencing
+		i+=1
 	temp_bowtieout.close()
 	#print found_locations
 	print "Done!"
