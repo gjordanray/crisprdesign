@@ -72,8 +72,12 @@ def bowtie_search( sgrna_list ): # returns dictionary of {protospacer+pam: Genom
 	subprocess.call( bowtie_cmdline ) #, stdout=open(os.devnull, 'wb'), stderr=open(os.devnull, 'wb') )
 	temp_bowtiein.close() # remove tempfiles
 
+	print "Parsing bowtie output...",
 	found_locations = {}
+	i = 1
 	for line in temp_bowtieout:
+		if i % 10000 == 0:
+			print ".",
 		l = line.strip().split('\t')
 		s = Seq( l[3], generic_dna )
 		loc = GenomicLocation( l[1], long(l[2]), long(l[2])+len(s), l[0] ) # format of bowtie output is strand, chr, start, sequence of read (revcomp if - strand mapped)
@@ -85,6 +89,7 @@ def bowtie_search( sgrna_list ): # returns dictionary of {protospacer+pam: Genom
 			found_locations.setdefault( str(s), [loc] ) # need to convert back to string for proper key referencing
 	temp_bowtieout.close()
 	#print found_locations
+	print "Done!"
 	return found_locations
 
 def _read_ccds( fname ):
@@ -118,10 +123,12 @@ def find_offtargets( sgrna_list, genelist="refgene" ):
 	# run bowtie for protospacer, including PAM
 	genomic_sites = bowtie_search( sgrna_list )
 	# offtargets are everything that's not the target_site
+	print "Parsing reference gene list...",
 	if genelist=="refgene":
 		genes = _read_refgene( "refGene.hg19.clean.sorted.txt" )
 	elif genelist=="ccds":
 		genes = _read_ccds( "CCDS.20140807.txt" )
+	print "Done!"
 	for sg in sgrna_list:
 		protospacerpam = str( sg.build_protospacerpam() )
 		if protospacerpam in genomic_sites.keys():
