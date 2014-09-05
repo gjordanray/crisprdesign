@@ -8,12 +8,6 @@ import re
 import random
 import sys
 
-def n_in_range( n, range1, range2 ):
-	if (n >= range1) and (n <= range2):
-		return True
-	else:
-		return False
-
 def hamming_dist( str1, str2 ):
 	diffs=0
 	for ch1, ch2 in zip( str1, str2 ):
@@ -85,9 +79,9 @@ def bowtie_search( sgrna_list ): # returns dictionary of {protospacer+pam: Genom
 		loc = GenomicLocation( l[1], long(l[2]), long(l[2])+len(s), l[0] ) # format of bowtie output is strand, chr, start, sequence of read (revcomp if - strand mapped)
 		if loc.strand == "-":
 			s = s.reverse_complement()
-		if str(s) in found_locations.keys():
+		try:
 			found_locations[str(s)].append( loc )
-		else:
+		except KeyError:
 			found_locations.setdefault( str(s), [loc] ) # need to convert back to string for proper key referencing
 		i+=1
 	temp_bowtieout.close()
@@ -131,12 +125,12 @@ def find_offtargets( sgrna_list, genelist="refgene" ):
 		genes = _read_refgene( "refGene.hg19.clean.sorted.txt" )
 	elif genelist=="ccds":
 		genes = _read_ccds( "CCDS.20140807.txt" )
-	print "Done!"
+	print "Read %s genes." % len(genes)
 	for sg in sgrna_list:
 		protospacerpam = str( sg.build_protospacerpam() )
-		if protospacerpam in genomic_sites.keys():
+		try:
 			offsites = genomic_sites[protospacerpam]
-		else:
+		except KeyError:
 			print "Could not find any genomic sites for %s" % protospacerpam
 			continue # we didn't find this (only happens if you called a protospacer that doesn't have a genomic match)
 		print "Off targets and associated genes for %s:" % protospacerpam
@@ -152,10 +146,12 @@ def find_offtargets( sgrna_list, genelist="refgene" ):
 			for gene in genes:
 				rg_gene, rg_chr, rg_start, rg_end = gene[0], gene[1], gene[3], gene[4]
 				if rg_chr == site.chr:
-					if n_in_range( site.start, rg_start, rg_end) or n_in_range( site.end, rg_start, rg_end):
-						if site in gene_dict.keys():
+					if (rg_start <= site.start <= rg_end) or (rg_start <= site.end <= rg_end):
+						try:
 							gene_dict[site].append( rg_gene )
 							print rg_gene,
+						except KeyError:
+							continue
 							#print site, rg_gene
 			print
 		sg.offtarget_sites = gene_dict
