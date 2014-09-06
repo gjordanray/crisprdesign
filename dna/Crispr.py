@@ -278,9 +278,8 @@ class SgRna:
 		self.offtarget_sites = {} # dict, format = {GenomicLocation: [gene1, gene2, gene3...]}
 		self.pam = ""
 		self.constant_region = Seq( constant_region, generic_rna )
-		self.constant_secstruct, self.constant_stability = RNA.fold( str( self.constant_region ))
 	def __eq__( self, other ):
-		return( (self.protospacer, self.target_site, self.target_seq, self.offtarget_sites, self.constant_region, self.constant_secstruct, self.constant_stability) == (other.protospacer, other.target_site, other.target_seq, other.offtarget_sites, other.constant_region, other.constant_secstruct, other.constant_stability))
+		return( (self.protospacer, self.target_site, self.target_seq, self.offtarget_sites, self.constant_region) == (other.protospacer, other.target_site, other.target_seq, other.offtarget_sites, other.constant_region))
 	def __ne__( self, other ):
 		return not self == other
 			
@@ -338,10 +337,11 @@ class SgRna:
 		score += stability**2
 		# mildly penalize bad secondary structure introduced to the constant region
 		full_secstruct, full_stability = RNA.fold( str(self.build_fullseq()))
-		if full_secstruct[-len(self.constant_secstruct):] != self.constant_secstruct:
-			print "constant  secstruct %s" % self.constant_secstruct
-			print "+guide    secstruct %s" % full_secstruct[-len(self.constant_secstruct):]
-			score += hamming_dist( full_secstruct[-len(self.constant_secstruct):], self.constant_secstruct )
+		constant_secstruct, constant_stability = RNA.fold( str( self.constant_region ))
+		if full_secstruct[-len(constant_secstruct):] != constant_secstruct:
+			print "constant  secstruct %s" % constant_secstruct
+			print "+guide    secstruct %s" % full_secstruct[-len(constant_secstruct):]
+			score += hamming_dist( full_secstruct[-len(constant_secstruct):], constant_secstruct )
 		# penalize for sequences adjacent PAM
 		if self.protospacer[:-1] == "C":
 			score += 10
@@ -352,7 +352,7 @@ class SgRna:
 		for match in matches:
 			print "Found %s  " % match.group(1)
 			if match.group(1) == "UUU" or match.group(1) == "TTT":
-				score += 50
+				score += 100
 			else:
 				score += 10
 		# remove bad GC sequences
