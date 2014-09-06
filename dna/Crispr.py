@@ -353,7 +353,7 @@ class SgRna:
 		for match in matches:
 			print "Found %s  " % match.group(1)
 			if match.group(1) == "UUU" or match.group(1) == "TTT":
-				score += 100
+				score += 50
 			else:
 				score += 10
 		# remove bad GC sequences
