@@ -63,6 +63,7 @@ def bowtie_search( sgrna_list ): # returns dictionary of {protospacer+pam: Genom
 	bowtie_cmdline = list(bowtie_constant_options)
 	bowtie_cmdline.append(temp_bowtiein.name)
 	bowtie_cmdline.append(temp_bowtieout.name)
+	print "Running bowtie to find genomic offtarget sites."
 	subprocess.call( bowtie_cmdline ) #, stdout=open(os.devnull, 'wb'), stderr=open(os.devnull, 'wb') )
 	temp_bowtiein.close() # remove tempfiles
 
