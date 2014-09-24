@@ -26,7 +26,7 @@ def bowtie_search( sgrna_list ): # returns dictionary of {protospacer+pam: Genom
 #			return []
 
 	# antisense_phredString = 'I4!=======44444++++++++'
-	bowtie_constant_options = ['bowtie', '--nomaqround', '--best', '-n 3', '-l 12', '-a', '-e 39', '-p 4', '--suppress', '1,6,7', '--chunkmbs', '256', 'hg19'] #note '--chunkmbs 128' and '--suppress 5,6,7'is one option, but subprocess needs them separated
+	bowtie_constant_options = ['bowtie', '--nomaqround', '--best', '-n 3', '-l 12', '-a', '-e 39', '-p 4', '--suppress', '1,6,7', '--chunkmbs', '256', 'hg38'] #note '--chunkmbs 128' and '--suppress 5,6,7'is one option, but subprocess needs them separated
 	temp_bowtiein = tempfile.NamedTemporaryFile(delete=True)
 #	temp_bowtiein = open( "bowtie.in", mode="w")
 
@@ -103,7 +103,10 @@ def _read_ccds( fname ):
 		if split[10].rstrip() == "Partial":
 			continue
 #		print split[2], split[0], split[6], long(split[7])+1, long(split[8])+1
-		genes.append( [split[2], split[0], split[6], long(split[7])+1, long(split[8])+1] ) # genes container now holds: geneid, chr, strand, txStart, txEnd (tx sites +1 to conform to UCSC 1-based index)
+		exons = split[9]
+		exons = exons.lstrip('[').rstrip(']')
+		exons = [(long(x.split('-')[0])+1,long(x.split('-')[1])+1) for x in exons.split(',')] # turn into start/end tuples with 1-indexing		
+		genes.append( [split[2], split[0], split[6], long(split[7])+1, long(split[8])+1, exons] ) # genes container now holds: geneid, chr, strand, txStart, txEnd (tx sites +1 to conform to UCSC 1-based index)
 	fhandle.close()
 	return genes
 
@@ -112,12 +115,15 @@ def _read_refgene( fname ):
 	genes=[]
 	for line in fhandle:
 		split = line.split('\t')
-		# format is    bin name chr strand txStart txEnd cdsStart cdsEnd
-		genes.append( [split[1], split[2], split[3], long(split[4]), long(split[5])] ) # genes container now holds: geneid, chr, strand, txStart, txend
+		# format is    bin name chr strand txStart txEnd cdsStart(multiples) cdsEnd(multiples)
+		starts = [long(x) for x in split[6].rstrip(',').split(',')] # need to remove trailing comma
+		ends = [long(x) for x in split[7].rstrip(',').split(',')]
+		exons = zip(starts,ends)
+		genes.append( [split[1], split[2], split[3], long(split[4]), long(split[5]), exons] ) # genes container now holds: geneid, chr, strand, txStart, txend
 	fhandle.close()
 	return genes
 
-def find_offtargets( sgrna_list, genelist="refgene" ):
+def find_offtargets( sgrna_list, genelist="refgene", noncoding=False ):
 	# run bowtie for protospacer, including PAM
 	genomic_sites = bowtie_search( sgrna_list )
 	# offtargets are everything that's not the target_site
@@ -127,14 +133,19 @@ def find_offtargets( sgrna_list, genelist="refgene" ):
 	elif genelist=="ccds":
 		genes = _read_ccds( "CCDS.20140807.txt" )
 	print "Read %s genes." % len(genes)
+	print "Finding offtargets including,"
+	if noncoding:
+		print "both coding and noncoding sequences."
+	else:
+		print "only coding sequences."
 	for sg in sgrna_list:
 		protospacerpam = str( sg.build_protospacerpam() )
+		print "Off targets and associated genes for %s:" % protospacerpam
 		try:
 			offsites = genomic_sites[protospacerpam]
 		except KeyError:
 			print "Could not find any genomic sites for %s" % protospacerpam
 			continue # we didn't find this (only happens if you called a protospacer that doesn't have a genomic match)
-		print "Off targets and associated genes for %s:" % protospacerpam
 		if not sg.target_site:
 			sg.target_site = offsites[0]
 			#print "target %s" % sg.target_site
@@ -147,13 +158,24 @@ def find_offtargets( sgrna_list, genelist="refgene" ):
 			for gene in genes:
 				rg_gene, rg_chr, rg_start, rg_end = gene[0], gene[1], gene[3], gene[4]
 				if rg_chr == site.chr:
-					if (rg_start <= site.start <= rg_end) or (rg_start <= site.end <= rg_end):
-						try:
-							gene_dict[site].append( rg_gene )
-							print rg_gene,
-						except KeyError:
-							continue
-							#print site, rg_gene
+					if noncoding:
+						if (rg_start <= site.start <= rg_end) or (rg_start <= site.end <= rg_end):
+							try:
+								gene_dict[site].append( rg_gene )
+								print rg_gene,
+							except KeyError:
+								continue
+					else:
+						for exon in gene[5]:
+							exon_start, exon_end = exon[0], exon[1]
+							if (exon_start <= site.start <= exon_end) or (exon_start <= site.end <= exon_end):
+								try:
+									gene_dict[site].append( rg_gene )
+									print rg_gene,
+								except KeyError:
+									continue
+									#print site, rg_gene
+								#print site, rg_gene
 			print
 		sg.offtarget_sites = gene_dict
 		print
