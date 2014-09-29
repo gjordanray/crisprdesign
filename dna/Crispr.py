@@ -370,11 +370,11 @@ class SgRna:
 			score += 10
 		elif self.protospacer[:-1] == "G":
 			score -= 5
-		# penalize homoX (3+), especially homoU (pol III terminator)
-		matches = re.finditer(r'(?=((\w)\2{2}))', str(self.protospacer)) #
+		# penalize homoX (4+), especially homoU (pol III terminator)
+		matches = re.finditer(r'(?=((\w)\2{3}))', str(self.protospacer)) #
 		for match in matches:
 			print "Found %s  " % match.group(1)
-			if match.group(1) == "UUU" or match.group(1) == "TTT":
+			if match.group(1) == "UUUU" or match.group(1) == "TTTT":
 				score += 100
 			else:
 				score += 10
