@@ -27,10 +27,11 @@ def sg_to_seqfeature( target, sg ):
 	location = target.seq.find( sg.protospacer.back_transcribe() )
 	if location == -1:
 		strand = -1
-		location = target.seq.find( sg.protospacer.reverse_complement().back_transcribe() )
+		location = target.seq.find( sg.protospacer.back_transcribe().reverse_complement() )
 	else:
 		strand = 1
 	if location == -1:
+		print location, sg.protospacer.back_transcribe().reverse_complement(), sg.target_seq
 		print "Could not find sg in target!"
 		return None
 	id = sg.protospacer
@@ -115,26 +116,29 @@ for target in targets:
 	if (search_start < 1 and search_end >= len(target.seq)):
 		print "Target site not valid: %d" % target_basestart
 
-	sgs = [SgRna(m.group(2)) for m in sense_re.finditer(str(target.seq), search_start, search_end)] # find all PAM-containing sequences, but only build sgs from the protospacer itself
-	for sg in sgs:
+	sgs = []
+	sense = [SgRna(m.group(2)) for m in sense_re.finditer(str(target.seq), search_start, search_end)] # find all PAM-containing sequences, but only build sgs from the protospacer itself
+	for sg in sense:
 		index = target.seq.find( str(sg.protospacer.back_transcribe()) )
 		sg.target_seq = target.seq[index-10:index+len(sg.protospacer)+10] # capture 10 bases on each side
 		sg.pam = target.seq[index+len(sg.protospacer):index+len(sg.protospacer)+3]
+		sgs.append( sg )
 	#print "--------"
-	as_sgs = [ Seq(m.group(2), generic_dna) for m in antisense_re.finditer( str(target.seq), search_start, search_end ) ] # find all PAM-containing sequences on the other strand
-	for seq in as_sgs:
+	antisense = [ Seq(m.group(2), generic_dna) for m in antisense_re.finditer( str(target.seq), search_start, search_end ) ] # find all PAM-containing sequences on the other strand
+	for seq in antisense:
 		index = target.seq.find( seq )
 		sg = SgRna( str(seq.reverse_complement()) )
 		sg.target_seq = target.seq[index-10:index+len(sg.protospacer)+10] # capture 10 bases on each side
 		sg.pam = target.seq[index-3:index].reverse_complement()
 		sgs.append( sg )
+#		print "          %s" % sg.protospacer
 #		print "          %s" % sg.protospacer.reverse_complement()
 #		print sg.target_seq
 #		print sg.pam
 #		print
 	find_offtargets( sgs )
 	
-	scored_sgs = [ (sg, sg.score()) for sg in sgs ]
+	scored_sgs = [ (sg, sg.calculate_score()) for sg in sgs ]
 		
 	hr_sg_list = []
 	hr = HrTemplate( target.seq[target_basestart-100:target_basestart-1] + target_mutation + target.seq[target_baseend:target_baseend+100] ) # split sgrna evenly, return 90 bases on either side (200 bases total)
@@ -144,9 +148,10 @@ for target in targets:
 	for scored_sg in scored_sgs:
 		sg = scored_sg[0]
 		if not hr.remove_pam( sg ):
-			print "Could not remove pam for %s!" % sg.protospacer
+			print "Could not remove pam for %s" % sg.protospacer
 			continue
 		else:
+			print "Found identical translations for guide %s in frame %s" % (sg.protospacer, hr.frame)
 			hr_sg_list.append( scored_sg )
 
 	min_score = 1000
@@ -165,7 +170,6 @@ for target in targets:
 	feature = SeqFeature( FeatureLocation( target_basestart, target_baseend), strand=None, type="mutation", id=target_mutation, qualifiers={"mutation": target_mutation} )
 	target.features.append( feature )
 	outhandle2 = target_id.split(",")[0]+"_sg.gb"
-	print outhandle2
-	target.name = outhandle2
+	target.name = target_id.split(",")[0]
 	SeqIO.write( target, outhandle2, "gb" )
 out_fhandle.close()

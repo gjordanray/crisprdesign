@@ -129,7 +129,7 @@ def find_offtargets( sgrna_list, genelist="refgene", noncoding=False ):
 	# offtargets are everything that's not the target_site
 	print "Parsing reference gene list...",
 	if genelist=="refgene":
-		genes = _read_refgene( "refGene.hg19.clean.sorted.txt" )
+		genes = _read_refgene( "refGene.hg38.clean.sorted.txt" )
 	elif genelist=="ccds":
 		genes = _read_ccds( "CCDS.20140807.txt" )
 	print "Read %s genes." % len(genes)
@@ -235,8 +235,6 @@ class HrTemplate:
 		# find location based on genomic sequence we're targeting
 		# then perform mutation based on existing HR template
 		# this allows mutations in HR template, serial removal of multiple PAMs, etc.
-		possible_bases3 = ["A", "T", "C"] # 3rd base of pam
-		possible_bases2 = ["T", "C" ] # 2nd base of pam
 		protospacer = sgrna.protospacer.back_transcribe()
 		sgrna_template_index = self.target_seq.find( protospacer )
 		if sgrna_template_index != -1:
@@ -250,9 +248,14 @@ class HrTemplate:
 			return False
 		# print "Strand %s" % strand
 		if strand == "-":
+			possible_bases3 = ["A", "T", "G"] # 3rd base of pam
+			possible_bases2 = ["A", "G" ] # 2nd base of pam
 			pos3, pos2 = range(sgrna_template_index-3, sgrna_template_index-1) # only get the last two bases of the PAM
 		else:
+			possible_bases3 = ["A", "T", "C"] # 3rd base of pam
+			possible_bases2 = ["T", "C" ] # 2nd base of pam
 			pos2,pos3 = range(sgrna_template_index + len(protospacer)+1, sgrna_template_index + len(protospacer)+3) # only get the last 2 bases of the PAM
+		#print pos2, pos3
 		# from here on, whether + or - strand, pam_indices order is [pos2,pos3]
 		# print pam_indices
 		if self.frame == 0: # if we're in a noncoding region, replace with a randomly allowed base
@@ -263,23 +266,22 @@ class HrTemplate:
 		else:	# if we're in a coding region, possible_bases is shuffled and we iterate
 			random.shuffle( possible_bases3 )
 			random.shuffle( possible_bases3 )
-			#print i, self.seq[i]
+			random.shuffle( possible_bases2 )
 			possible_bases2.insert(0, self.seq[ pos2 ] ) # add existing 2nd PAM base to the list. that way we start with identity at pos2 and vary pos3, then move on to varying both
 			for base2 in possible_bases2:
 				for base3 in possible_bases3:
-					seq_copy = self.seq[:pos2] + base2 + base3 + self.seq[pos3+1:]
+					seq_copy = self.seq[:min(pos2,pos3)] + base2 + base3 + self.seq[max(pos2,pos3)+1:] # copy of the sequence with PAM bases replaced
 					if self.frame < 1: 
 						test_translation = seq_copy.reverse_complement()[abs(self.frame)-1:].translate()
 						ref_translation = self.seq.reverse_complement()[abs(self.frame)-1:].translate()
 					else:
 						test_translation = seq_copy[self.frame-1:].translate()
 						ref_translation = self.seq[self.frame-1:].translate()
-					#print i
-					#print test_translation
-					#print ref_translation
-					#print
+#					print protospacer
+#					print test_translation
+#					print ref_translation
+#					print
 					if str(test_translation) == str(ref_translation):
-						print "Found identical translations for frame %s" % self.frame
 						#print self.seq
 						#print seq_copy
 						self.seq = seq_copy
@@ -301,8 +303,9 @@ class SgRna:
 		self.offtarget_sites = {} # dict, format = {GenomicLocation: [gene1, gene2, gene3...]}
 		self.pam = ""
 		self.constant_region = Seq( constant_region, generic_rna )
+		self.score = 0
 	def __eq__( self, other ):
-		return( (self.protospacer, self.target_site, self.target_seq, self.offtarget_sites, self.constant_region) == (other.protospacer, other.target_site, other.target_seq, other.offtarget_sites, other.constant_region))
+		return( (self.protospacer, self.target_site, self.target_seq, self.offtarget_sites, self.constant_region, self.score) == (other.protospacer, other.target_site, other.target_seq, other.offtarget_sites, other.constant_region, other.score))
 	def __ne__( self, other ):
 		return not self == other
 			
@@ -336,7 +339,7 @@ class SgRna:
 				self.pam = pam
 			return Seq( str(p)+str(self.pam), generic_dna )
 	
-	def score(self):
+	def calculate_score(self):
 		print "Scoring sgrna %s" % self.protospacer
 		score = 0
 		# lower score is better
@@ -430,5 +433,6 @@ class SgRna:
 					break
 			if i>0: print "Found %i Gs following PAM" % i
 		print "Total score %f" % score
+		self.score = score
 		print
 		return score
