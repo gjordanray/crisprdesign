@@ -1,5 +1,9 @@
 #!/usr/bin/env python
-import RNA # Vienna RNA secondary structure prediction
+try:
+	import RNA # Vienna RNA secondary structure prediction
+	vienna_loaded = True
+except ImportError:
+	vienna_loaded = False
 from Bio.Seq import Seq, MutableSeq
 from Bio.Alphabet import generic_dna, generic_rna
 import tempfile
@@ -123,7 +127,7 @@ def _read_refgene( fname ):
 	fhandle.close()
 	return genes
 
-def find_offtargets( sgrna_list, genelist="refgene", noncoding=False ):
+def find_offtargets( sgrna_list, genelist="refgene", noncoding=True ):
 	# run bowtie for protospacer, including PAM
 	genomic_sites = bowtie_search( sgrna_list )
 	# offtargets are everything that's not the target_site
@@ -357,17 +361,18 @@ class SgRna:
 		# -5 if last base before PAM is G (Doench et al Nat Biotech 2014)
 		# +20 if no microhomology found TODO
 		# ----
-		# penalize secondary structure in the protospacer sequence
-		secstruct, stability = RNA.fold( str(self.protospacer) )
-		print "Protospacer secstruct & stability %s %f kcal/mol" % (secstruct, stability)
-		score += stability**2
-		# mildly penalize bad secondary structure introduced to the constant region
-		full_secstruct, full_stability = RNA.fold( str(self.build_fullseq()))
-		constant_secstruct, constant_stability = RNA.fold( str( self.constant_region ))
-		if full_secstruct[-len(constant_secstruct):] != constant_secstruct:
-			print "constant  secstruct %s" % constant_secstruct
-			print "+guide    secstruct %s" % full_secstruct[-len(constant_secstruct):]
-			score += hamming_dist( full_secstruct[-len(constant_secstruct):], constant_secstruct )
+		if vienna_loaded:
+			# penalize secondary structure in the protospacer sequence
+			secstruct, stability = RNA.fold( str(self.protospacer) )
+			print "Protospacer secstruct & stability %s %f kcal/mol" % (secstruct, stability)
+			score += stability**2
+			# mildly penalize bad secondary structure introduced to the constant region
+			full_secstruct, full_stability = RNA.fold( str(self.build_fullseq()))
+			constant_secstruct, constant_stability = RNA.fold( str( self.constant_region ))
+			if full_secstruct[-len(constant_secstruct):] != constant_secstruct:
+				print "constant  secstruct %s" % constant_secstruct
+				print "+guide    secstruct %s" % full_secstruct[-len(constant_secstruct):]
+				score += hamming_dist( full_secstruct[-len(constant_secstruct):], constant_secstruct )
 		# penalize for sequences adjacent PAM
 		if self.protospacer[:-1] == "C":
 			score += 10
