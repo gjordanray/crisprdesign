@@ -7,10 +7,9 @@ from Bio.SeqFeature import SeqFeature, FeatureLocation
 from Bio.Graphics import GenomeDiagram
 from Bio.Alphabet import generic_dna, generic_rna
 from Bio.Data.CodonTable import unambiguous_dna_by_id
-import sys, subprocess, os, tempfile
+import sys, subprocess, os, tempfile, copy
 
 from Crispr import *
-
 
 def parse_target_header( sequence_record ):
 #reads fasta headers of the format
@@ -137,35 +136,35 @@ for target in targets:
 #		print sg.pam
 #		print
 	find_offtargets( sgs )
-	
-	scored_sgs = [ (sg, sg.calculate_score()) for sg in sgs ]
+	for sg in sgs:
+		sg.calculate_score()
+#	scored_sgs = [ sg.calculate_score() for sg in sgs ]
+	sgs.sort(key=lambda x: x.score )
 		
 	hr_sg_list = []
 	hr = HrTemplate( target.seq[target_basestart-100:target_basestart-1] + target_mutation + target.seq[target_baseend:target_baseend+100] ) # split sgrna evenly, return 90 bases on either side (200 bases total)
 	hr.target_seq = target.seq[target_basestart-100:target_baseend+100]
 	hr.find_frame()
-	hr_sg_list.append( hr )
-	for scored_sg in scored_sgs:
-		sg = scored_sg[0]
-		if not hr.remove_pam( sg ):
+	for sg in sgs:
+		temp_hr = copy.deepcopy(hr) # need to make a deepcopy so that only the pam of the current sgrna is removed
+		if not temp_hr.remove_pam( sg ):
 			print "Could not remove pam for %s" % sg.protospacer
 			continue
 		else:
-			print "Found identical translations for guide %s in frame %s" % (sg.protospacer, hr.frame)
-			hr_sg_list.append( scored_sg )
+			print "Found identical translations for guide %s in frame %s" % (sg.protospacer, temp_hr.frame)
+			hr_sg_list.append( (temp_hr, sg) )
 
 	min_score = 1000
 #	hr_sg_list.sort( key=lambda x:x[1] )
-	hr = hr_sg_list[0]
-	feature = hr_to_seqfeature( target, hr )
-	target.features.append( feature )
-
-	for scored_sg in hr_sg_list[1:]:
-		sg = scored_sg[0]
-		score = scored_sg[1]
-		out_fhandle.write( "\t".join( [target_id, str(sg.protospacer.back_transcribe()), str(score), str(hr.seq), "\n"] ))
+	for hr_sg in hr_sg_list:
+		hr = hr_sg[0]
+		sg = hr_sg[1]
+		feature = hr_to_seqfeature( target, hr )
+		target.features.append( feature )
+		score = sg.score
 		feature = sg_to_seqfeature( target, sg )
 		target.features.append( feature )
+		out_fhandle.write( "\t".join( [target_id, str(sg.protospacer.back_transcribe()), str(score), str(hr.seq), "\n"] ))
 
 	feature = SeqFeature( FeatureLocation( target_basestart, target_baseend), strand=None, type="mutation", id=target_mutation, qualifiers={"mutation": target_mutation} )
 	target.features.append( feature )
