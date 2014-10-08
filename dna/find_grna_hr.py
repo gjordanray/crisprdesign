@@ -84,37 +84,39 @@ def plot_sgrnas( target, target_basen, offset, sites ):
 	gd_diagram.draw(format="linear", pagesize='LETTER', fragments=1, start=target_basen-offset, end=target_basen+offset)
 	gd_diagram.write(target_id+".pdf", "PDF")
 
+
+# start of main script
 target_fname = sys.argv[1]
 target_handle = open( target_fname, "rU" )
 targets = list( rec.upper() for rec in SeqIO.parse( target_handle, "fasta", alphabet=generic_dna))
 out_fname = sys.argv[2]
 
 starting_site_offset = 50 # starting distance around target site for search
-max_site_offset = 50 # max distance around target site for search
+max_site_offset = 50 # max distance on each side of target site for search (symmetric)
 min_unique_sites = 2 # minimum number of unique sequences to find around the target site
 
 out_fhandle = open( out_fname, mode="w" )
 for target in targets:
+
+	# parse headers
 	target_id, target_basestart, target_baseend, target_seq, target_mutation = parse_target_header( target )
 	print "Targeting bases %i-%i:%s->%s in %s" % (target_basestart, target_baseend, target_seq, target_mutation, target_id)
 	if (target_basestart < 0 or target_basestart >= len(target.seq)):
 		print "Target site not valid: %d" % target_basestart
 		sys.exit(0)
 
-	# Find all overlapping 23mers that either end in GG or start with CC
-	sense_re=re.compile(r'(?=(([ATGCatgc]{20})[ATGCatgc]GG))') # complicated regex with lookahead to get overlapping sequences.
-	antisense_re=re.compile(r'(?=(CC[ATGCatgc]([ATGCatgc]{20})))')
-
+	# set search window
 	site_offset = starting_site_offset
 	passing_seqs = []
 	sgs = []
-#	while len(sgs) < min_unique_sites or site_offset <= max_site_offset:
-#		while ( len(sgs) < min_unique_sites ): # keep expanding search until at least min # sgRNAs found (don't care if unique at this stage)
 	search_start = target_basestart - site_offset
 	search_end = target_basestart + site_offset
 	if (search_start < 1 and search_end >= len(target.seq)):
 		print "Target site not valid: %d" % target_basestart
 
+	# Find potential sgRNAs (defined as 23-mers ending in NGG or starting in CCN) on both plus and minus strands
+	sense_re=re.compile(r'(?=(([ATGCatgc]{20})[ATGCatgc]GG))') # complicated regex with lookahead to get overlapping sequences.
+	antisense_re=re.compile(r'(?=(CC[ATGCatgc]([ATGCatgc]{20})))')
 	sgs = []
 	sense = [SgRna(m.group(2)) for m in sense_re.finditer(str(target.seq), search_start, search_end)] # find all PAM-containing sequences, but only build sgs from the protospacer itself
 	for sg in sense:
@@ -122,7 +124,6 @@ for target in targets:
 		sg.target_seq = target.seq[index-10:index+len(sg.protospacer)+10] # capture 10 bases on each side
 		sg.pam = target.seq[index+len(sg.protospacer):index+len(sg.protospacer)+3]
 		sgs.append( sg )
-	#print "--------"
 	antisense = [ Seq(m.group(2), generic_dna) for m in antisense_re.finditer( str(target.seq), search_start, search_end ) ] # find all PAM-containing sequences on the other strand
 	for seq in antisense:
 		index = target.seq.find( seq )
@@ -130,17 +131,14 @@ for target in targets:
 		sg.target_seq = target.seq[index-10:index+len(sg.protospacer)+10] # capture 10 bases on each side
 		sg.pam = target.seq[index-3:index].reverse_complement()
 		sgs.append( sg )
-#		print "          %s" % sg.protospacer
-#		print "          %s" % sg.protospacer.reverse_complement()
-#		print sg.target_seq
-#		print sg.pam
-#		print
-	find_offtargets( sgs )
+
+	# score potential sgRNAs		
+	find_offtargets( sgs, genelist="refgene", noncoding=True )
 	for sg in sgs:
 		sg.calculate_score()
-#	scored_sgs = [ sg.calculate_score() for sg in sgs ]
 	sgs.sort(key=lambda x: x.score )
 		
+	# make HR templates and try to remove PAMs for each potential sgRNA. only keep a guide if the PAM could be removed
 	hr_sg_list = []
 	hr = HrTemplate( target.seq[target_basestart-100:target_basestart-1] + target_mutation + target.seq[target_baseend:target_baseend+100] ) # split sgrna evenly, return 90 bases on either side (200 bases total)
 	hr.target_seq = target.seq[target_basestart-100:target_baseend+100]
@@ -154,8 +152,7 @@ for target in targets:
 			print "Found identical translations for guide %s in frame %s" % (sg.protospacer, temp_hr.frame)
 			hr_sg_list.append( (temp_hr, sg) )
 
-	min_score = 1000
-#	hr_sg_list.sort( key=lambda x:x[1] )
+	# output
 	for hr_sg in hr_sg_list:
 		hr = hr_sg[0]
 		sg = hr_sg[1]
