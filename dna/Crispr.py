@@ -23,14 +23,19 @@ def GCcontent( seq ):
 	GC = (seq.count("G") + seq.count("C")) / float(len(seq))
 	return GC
 
-def bowtie_search( sgrna_list ): # returns dictionary of {protospacer+pam: GenomicLocations}
+def bowtie_search( sgrna_list, bowtie_mode="scoring" ): # returns dictionary of {protospacer+pam: GenomicLocations}
 #	for sg in sgrna_list:
 #		if sg.target_seq == None:
 #			print "Must set target_seq to find offtargets!"
 #			return []
 
 	# antisense_phredString = 'I4!=======44444++++++++'
-	bowtie_constant_options = ['bowtie', '--nomaqround', '--best', '-n 3', '-l 12', '-a', '-e 39', '-p 4', '--suppress', '1,6,7', '--chunkmbs', '256', 'hg38'] #note '--chunkmbs 128' and '--suppress 5,6,7'is one option, but subprocess needs them separated
+	bowtie_constant_options = ['bowtie', '--nomaqround', '--best', '-n 3', '-l 12', '-e 39', '-p 4', '--suppress', '1,6,7', '--chunkmbs', '256', 'hg38'] #note '--chunkmbs 128' and '--suppress 5,6,7'is one option, but subprocess needs them separated. -l 12 -n 3 since phred33 scoring also means can have no more than 3 mismatches in 5' 12 bases
+	if bowtie_mode == "scoring":
+		bowtie_constant_options.append( '-a' )
+	elif bowtie_mode == "searching": # only report reads if <10 alignments
+		bowtie_constant_options.extend( ['-m', '10'] )
+	
 	temp_bowtiein = tempfile.NamedTemporaryFile(delete=True)
 #	temp_bowtiein = open( "bowtie.in", mode="w")
 
@@ -127,9 +132,13 @@ def _read_refgene( fname ):
 	fhandle.close()
 	return genes
 
-def find_offtargets( sgrna_list, genelist="refgene", noncoding=True ):
+def find_offtargets( sgrna_list, genelist="refgene", noncoding=True, mode="scoring" ):
 	# run bowtie for protospacer, including PAM
-	genomic_sites = bowtie_search( sgrna_list )
+	if mode == "scoring" or mode == "searching":
+		genomic_sites = bowtie_search( sgrna_list, bowtie_mode=mode )
+	else:
+		print "Offtarget mode not recognized!"
+		return
 	# offtargets are everything that's not the target_site
 	print "Parsing reference gene list...",
 	if genelist=="refgene":
@@ -296,6 +305,8 @@ class HrTemplate:
 class SgRna:
 	# instance variables
 	def __init__(self, seq, constant_region="GUUUUAGAGCUAGAAAUAGCAAGUUAAAAUAAGGCUAGUCCGUUAUCAACUUGAAAAAGUGGCACCGAGUCGGUGCUUUUUU" ):
+					  # weissman constant = "GUUUAAGAGCUAAGCUGGAAACAGCAUAGCAAGUUUAAAUAAGGCUAGUCCGUUAUCAACUUGAAAAAGUGGCACCGAGUCGGUGCUUUUUUU"
+					     # broad constant = "GUUUUAGAGCUAGAAAUAGCAAGUUAAAAUAAGGCUAGUCCGUUAUCAACUUGAAAAAGUGGCACCGAGUCGGUGCUUUUUU"
 		# turn DNA input into RNA
 		seq_copy = seq
 		if seq_copy.find("T"): # convert to RNA if not already done
@@ -361,6 +372,10 @@ class SgRna:
 		# -5 if last base before PAM is G (Doench et al Nat Biotech 2014)
 		# +20 if no microhomology found TODO
 		# ----
+		# major penalty if couldn't find target site in the genome:
+		if not self.target_site:
+			print "Target site for %s not found in the genome!" % self.protospacer
+			score += 10000
 		if vienna_loaded:
 			# penalize secondary structure in the protospacer sequence
 			secstruct, stability = RNA.fold( str(self.protospacer) )
