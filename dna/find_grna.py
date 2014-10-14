@@ -91,18 +91,21 @@ target_handle = open( target_fname, "rU" )
 targets = list( rec.upper() for rec in SeqIO.parse( target_handle, "fasta", alphabet=generic_dna))
 out_fname = sys.argv[2]
 
+constant = "GUUUAAGAGCUAAGCUGGAAACAGCAUAGCAAGUUUAAAUAAGGCUAGUCCGUUAUCAACUUGAAAAAGUGGCACCGAGUCGGUGCUUUUUUU" # weissman-style constant region for CRISPRi/a
+#	constant = "GUUUUAGAGCUAGAAAUAGCAAGUUAAAAUAAGGCUAGUCCGUUAUCAACUUGAAAAAGUGGCACCGAGUCGGUGCUUUUUU"
+
+
 starting_site_offset = 50 # starting distance around target site for search
 max_site_offset = 50 # max distance on each side of target site for search (symmetric)
 min_unique_sites = 2 # minimum number of unique sequences to find around the target site
 
 out_fhandle = open( out_fname, mode="w" )
 for target in targets:
-
 	# Find potential sgRNAs (defined as 23-mers ending in NGG or starting in CCN) on both plus and minus strands
 	sense_re=re.compile(r'(?=(([ATGCatgc]{20})[ATGCatgc]GG))') # complicated regex with lookahead to get overlapping sequences.
 	antisense_re=re.compile(r'(?=(CC[ATGCatgc]([ATGCatgc]{20})))')
 	sgs = []
-	sense = [SgRna(m.group(2)) for m in sense_re.finditer(str(target.seq))] # find all PAM-containing sequences, but only build sgs from the protospacer itself
+	sense = [SgRna(m.group(2), constant_region=constant) for m in sense_re.finditer(str(target.seq))] # find all PAM-containing sequences, but only build sgs from the protospacer itself
 	for sg in sense:
 		index = target.seq.find( str(sg.protospacer.back_transcribe()) )
 		sg.target_seq = target.seq[index-10:index+len(sg.protospacer)+10] # capture 10 bases on each side
@@ -111,7 +114,7 @@ for target in targets:
 	antisense = [ Seq(m.group(2), generic_dna) for m in antisense_re.finditer( str(target.seq)) ] # find all PAM-containing sequences on the other strand
 	for seq in antisense:
 		index = target.seq.find( seq )
-		sg = SgRna( str(seq.reverse_complement()) )
+		sg = SgRna( str(seq.reverse_complement()), constant_region=constant )
 		sg.target_seq = target.seq[index-10:index+len(sg.protospacer)+10] # capture 10 bases on each side
 		sg.pam = target.seq[index-3:index].reverse_complement()
 		sgs.append( sg )
