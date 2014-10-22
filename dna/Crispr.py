@@ -304,7 +304,7 @@ class HrTemplate:
 
 class SgRna:
 	# instance variables
-	def __init__(self, seq, constant_in="GUUUUAGAGCUAGAAAUAGCAAGUUAAAAUAAGGCUAGUCCGUUAUCAACUUGAAAAAGUGGCACCGAGUCGGUGCUUUUUU", target_site_in=None, target_seq_in="", pam_in="" ):
+	def __init__(self, seq, constant_region="GUUUUAGAGCUAGAAAUAGCAAGUUAAAAUAAGGCUAGUCCGUUAUCAACUUGAAAAAGUGGCACCGAGUCGGUGCUUUUUU", target_site=None, target_seq="", pam="" ):
 					  # weissman constant = "GUUUAAGAGCUAAGCUGGAAACAGCAUAGCAAGUUUAAAUAAGGCUAGUCCGUUAUCAACUUGAAAAAGUGGCACCGAGUCGGUGCUUUUUUU"
 					     # broad constant = "GUUUUAGAGCUAGAAAUAGCAAGUUAAAAUAAGGCUAGUCCGUUAUCAACUUGAAAAAGUGGCACCGAGUCGGUGCUUUUUU"
 		# turn DNA input into RNA
@@ -313,11 +313,11 @@ class SgRna:
 			seq_copy = seq.replace( "T", "U" )
 		#print seq, seq_copy
 		self.protospacer = Seq(seq_copy, generic_rna) # sequence sans constant portion. can only set protospacer on initialization. always stored as RNA
-		self.target_site = target_site_in # will eventually become a GenomicLocation. strand (+ means sgrna seq same as + strand, - means sgrna seq same as - strand), 
-		self.target_seq = target_seq_in # 10 bases on either side of site
+		self.target_site = target_site # will eventually become a GenomicLocation. strand (+ means sgrna seq same as + strand, - means sgrna seq same as - strand), 
+		self.target_seq = target_seq # 10 bases on either side of site
 		self.offtarget_sites = {} # dict, format = {GenomicLocation: [gene1, gene2, gene3...]}
-		self.pam = pam_in
-		self.constant_region = Seq( constant_in, generic_rna )
+		self.pam = pam
+		self.constant_region = Seq( constant_region, generic_rna )
 		self.score = 0
 	def __eq__( self, other ):
 		return( (self.protospacer, self.target_site, self.target_seq, self.offtarget_sites, self.constant_region, self.score) == (other.protospacer, other.target_site, other.target_seq, other.offtarget_sites, other.constant_region, other.score))
