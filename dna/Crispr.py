@@ -128,7 +128,7 @@ def _read_refgene( fname ):
 		starts = [long(x) for x in split[6].rstrip(',').split(',')] # need to remove trailing comma
 		ends = [long(x) for x in split[7].rstrip(',').split(',')]
 		exons = zip(starts,ends)
-		genes.append( [split[1], split[2], split[3], long(split[4]), long(split[5]), exons] ) # genes container now holds: geneid, chr, strand, txStart, txend
+		genes.append( [split[1], split[2], split[3], long(split[4]), long(split[5]), exons] ) # genes container now holds: geneid, chr, strand, txStart, txend, exons
 	fhandle.close()
 	return genes
 
@@ -375,7 +375,7 @@ class SgRna:
 		# major penalty if couldn't find target site in the genome:
 		if not self.target_site:
 			print "Target site for %s not found in the genome!" % self.protospacer
-			score += 10000
+			score += 1000000
 		if vienna_loaded:
 			# penalize secondary structure in the protospacer sequence
 			secstruct, stability = RNA.fold( str(self.protospacer) )
@@ -398,7 +398,7 @@ class SgRna:
 		for match in matches:
 			print "Found %s  " % match.group(1)
 			if match.group(1) == "UUUU" or match.group(1) == "TTTT":
-				score += 100
+				score += 1000
 			else:
 				score += 10
 		# remove bad GC sequences
@@ -421,9 +421,9 @@ class SgRna:
 					for offtgt in self.offtarget_sites[offsite]:
 						print "%s " % offtgt,
 					print
-					score += num_offtarget_genes * 1000
+					score += num_offtarget_genes * 10000
 				else:
-					score += 25
+					score += 100
 		# penalize based on facts  about the site targeted in the genome
 		if self.target_seq:
 			# PAM profile
