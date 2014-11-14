@@ -153,6 +153,7 @@ for target in targets:
 			hr_sg_list.append( (temp_hr, sg) )
 
 	# output
+	i = 1
 	for hr_sg in hr_sg_list:
 		hr = hr_sg[0]
 		sg = hr_sg[1]
@@ -161,7 +162,8 @@ for target in targets:
 		score = sg.score
 		feature = sg_to_seqfeature( target, sg )
 		target.features.append( feature )
-		out_fhandle.write( "\t".join( [target_id, str(sg.protospacer.back_transcribe()), str(score), str(hr.seq), "\n"] ))
+		out_fhandle.write( "\t".join( [target_id+"_"+str(i), str(sg.protospacer.back_transcribe()), str(sg.build_fullseq()), str(score), str(hr.seq), "\n"] ))
+		i+=1
 
 	feature = SeqFeature( FeatureLocation( target_basestart, target_baseend), strand=None, type="mutation", id=target_mutation, qualifiers={"mutation": target_mutation} )
 	target.features.append( feature )
