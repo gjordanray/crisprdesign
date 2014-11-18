@@ -358,18 +358,19 @@ class SgRna:
 		print "Scoring sgrna %s" % self.protospacer
 		score = 0
 		# lower score is better
-		# +25 if GC content
-		# +100 for each U homopolymer (3+) (sliding window)
-		# +10 for homoX sequences other than U
-		# +25 if 3' base of protospacer is a U
+		# +1000000 if target site is undefined (not found in genome)
 		# +X^2, where X is stability of secondary structure in the protospacer 
 		#	(squaring gives reasonably bigger penalties for stability and takes care of negatives)
-		# (below are optional, if genomic context and offtarget sites are defined)
-		# +10 for each 3' G in a row after the PAM
-		# +25 for each offtarget site that passed bowtie filters
-		# 	or +100 for each gene (refGene) that offtarget site was in
 		# +10 if last base before PAM is C (Doench et al Nat Biotech 2014)
 		# -5 if last base before PAM is G (Doench et al Nat Biotech 2014)
+		# -5 if PAM is NGG (vs NNG)
+		# +1000 for each U homopolymer (4+) (sliding window)
+		# +10 for homoX sequences other than U
+		# +5 if 3' -1, -2, -4 bases of protospacer is a U (see Wang et al for sgRNA loading data)
+		# +25 if GC content 0.4 < x > 0.8
+		# +100 for each offtarget site that passed bowtie filters
+		# 	or +10000 for each gene (refGene) that offtarget site was in
+		# +10 for each 3' G in a row after the PAM
 		# +20 if no microhomology found TODO
 		# ----
 		# major penalty if couldn't find target site in the genome:
@@ -388,7 +389,7 @@ class SgRna:
 				print "constant  secstruct %s" % constant_secstruct
 				print "+guide    secstruct %s" % full_secstruct[-len(constant_secstruct):]
 				score += hamming_dist( full_secstruct[-len(constant_secstruct):], constant_secstruct )
-		# penalize for sequences adjacent PAM
+		# penalize for sequences adjacent PAM (see Doench et al Nat Biotech 2014)
 		if self.protospacer[:-1] == "C":
 			score += 10
 		elif self.protospacer[:-1] == "G":
@@ -437,12 +438,6 @@ class SgRna:
 				return score
 			grna_local_index = downstream_seq.find( p )
 			downstream_seq = downstream_seq[grna_local_index + len(self.protospacer):] # everything after the sgrna
-#			pam = downstream_seq[:3]
-#			print "model PAM %s | PAM %s" % (self.model_pam, self.pam)
-#			if pam[1] != self.model_pam[1]:
-#				score += 20
-#			if pam[2] != self.model_pam[2]:
-#				score += 10000 # something is wrong... last base should always match
 			# penalize G homopolymers after the PAM
 			i=0
 			for base in downstream_seq[len(self.pam):]:
