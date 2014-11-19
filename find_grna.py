@@ -126,13 +126,21 @@ for target in targets:
 		sg.calculate_score()
 	sgs.sort(key=lambda x: x.score )
 
+	outhandle_bed = open( target_fname+".bed", mode="w")
+	
+	outhandle_bed.write( 'track name=guides description="Cas9 sgRNAs"\n' )
 	for sg in sgs:		
 		score = sg.score
-#		if score < 100:
-		feature = sg_to_seqfeature( target, sg )
-		target.features.append( feature )
+		if score < 100:
+			if sg.target_site is not None:
+				chr, start, end, strand = (sg.target_site.chr, sg.target_site.start, sg.target_site.end, sg.target_site.strand)
+				outhandle_bed.write( "\t".join( [chr, str(start), str(end), "sgrna", "1000", strand, str(start), str(end), "\n"] ))
+			feature = sg_to_seqfeature( target, sg )
+			target.features.append( feature )
 		out_fhandle.write( "\t".join( [target.id, str(sg.protospacer.back_transcribe()), str(sg.pam), str(score), "\n"] ))
 
-	outhandle2 = target.id+"_sg.gb"
+	outhandle2 = target_fname+".sg.gb"
+	target.name = target.name[:16]
+	target.id = target.id[:16]
 	SeqIO.write( target, outhandle2, "gb" )
 out_fhandle.close()
