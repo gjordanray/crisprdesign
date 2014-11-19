@@ -145,12 +145,17 @@ for target in targets:
 	hr.find_frame()
 	for sg in sgs:
 		temp_hr = copy.deepcopy(hr) # need to make a deepcopy so that only the pam of the current sgrna is removed
-		if not temp_hr.remove_pam( sg ):
+		if not hr.remove_pam( sg ): # used for all-at-once PAM removal
+#		if not temp_hr.remove_pam( sg ): # used for one-at-a-time PAM removal
 			print "Could not remove pam for %s" % sg.protospacer
 			continue
 		else:
-			print "Found identical translations for guide %s in frame %s" % (sg.protospacer, temp_hr.frame)
-			hr_sg_list.append( (temp_hr, sg) )
+			# used for all-at-once PAM removal
+			print "Found identical translations for guide %s in frame %s" % (sg.protospacer, hr.frame)
+			hr_sg_list.append( (hr, sg) )
+			# used for one-at-a-time PAM removal
+#			print "Found identical translations for guide %s in frame %s" % (sg.protospacer, temp_hr.frame)
+#			hr_sg_list.append( (temp_hr, sg) )
 
 	# output
 	i = 1
