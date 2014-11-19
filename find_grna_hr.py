@@ -96,6 +96,11 @@ max_site_offset = 50 # max distance on each side of target site for search (symm
 min_unique_sites = 2 # minimum number of unique sequences to find around the target site
 
 out_fhandle = open( out_fname, mode="w" )
+
+# Find potential sgRNAs (defined as 23-mers ending in NGG or starting in CCN) on both plus and minus strands
+sense_re=re.compile(r'(?=([ATGCatgc]{20})([ATGCatgc]GG))') #  regex with lookahead to get overlapping sequences. group1 is protospacer, group2 is pam
+antisense_re=re.compile(r'(?=(CC[ATGCatgc])([ATGCatgc]{20}))') # group1 is pam, group2 is protospacer
+
 for target in targets:
 
 	# parse headers
@@ -115,21 +120,22 @@ for target in targets:
 		print "Target site not valid: %d" % target_basestart
 
 	# Find potential sgRNAs (defined as 23-mers ending in NGG or starting in CCN) on both plus and minus strands
-	sense_re=re.compile(r'(?=(([ATGCatgc]{20})[ATGCatgc]GG))') # complicated regex with lookahead to get overlapping sequences.
-	antisense_re=re.compile(r'(?=(CC[ATGCatgc]([ATGCatgc]{20})))')
 	sgs = []
-	sense = [SgRna(m.group(2)) for m in sense_re.finditer(str(target.seq), search_start, search_end)] # find all PAM-containing sequences, but only build sgs from the protospacer itself
-	for sg in sense:
-		index = target.seq.find( str(sg.protospacer.back_transcribe()) )
-		sg.target_seq = target.seq[index-10:index+len(sg.protospacer)+10] # capture 10 bases on each side
-		sg.pam = target.seq[index+len(sg.protospacer):index+len(sg.protospacer)+3]
+	for m in sense_re.finditer(str(target.seq), start, end):
+		seq = m.group(1)
+		seqpam = m.group(2)
+		sgstart=m.start(1)
+		sgend=m.end(1)
+		# print "%s %s forward" % (seq, seqpam)
+		sg = SgRna(seq, constant_region=constant, target_seq=target.seq[sgstart-10:sgend+10], pam=seqpam)
 		sgs.append( sg )
-	antisense = [ Seq(m.group(2), generic_dna) for m in antisense_re.finditer( str(target.seq), search_start, search_end ) ] # find all PAM-containing sequences on the other strand
-	for seq in antisense:
-		index = target.seq.find( seq )
-		sg = SgRna( str(seq.reverse_complement()) )
-		sg.target_seq = target.seq[index-10:index+len(sg.protospacer)+10] # capture 10 bases on each side
-		sg.pam = target.seq[index-3:index].reverse_complement()
+	for m in antisense_re.finditer( str(target.seq), start, end):
+		seq = str(Seq(m.group(2), generic_dna).reverse_complement())
+		seqpam=Seq(m.group(1), generic_dna).reverse_complement()
+		sgstart=m.start(2)
+		sgend=m.end(2)
+		# print "%s %s reverse" % (seq, seqpam)
+		sg = SgRna( seq, constant_region=constant, target_seq=target.seq[sgstart-10:sgend+10], pam=seqpam )
 		sgs.append( sg )
 
 	# score potential sgRNAs		
