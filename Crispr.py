@@ -17,7 +17,6 @@ def find_guides( in_seq, sense=True, antisense=True, constant="GUUUUAGAGCUAGAAAU
 	# Find potential sgRNAs (defined as 23-mers ending in NGG or starting in CCN) on both plus and minus strands
 	if start == end: # find guides across the entire sequence by default
 		end = len( in_seq )
-	print start, end
 	sgs = []
 	if sense:
 		sense_re=re.compile(r'(?=([ATGCatgc]{20})([ATGCatgc]GG))') #  regex with lookahead to get overlapping sequences. group1 is protospacer, group2 is pam
