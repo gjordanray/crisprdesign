@@ -120,23 +120,8 @@ for target in targets:
 		print "Target site not valid: %d" % target_basestart
 
 	# Find potential sgRNAs (defined as 23-mers ending in NGG or starting in CCN) on both plus and minus strands
-	sgs = []
-	for m in sense_re.finditer(str(target.seq), start, end):
-		seq = m.group(1)
-		seqpam = m.group(2)
-		sgstart=m.start(1)
-		sgend=m.end(1)
-		# print "%s %s forward" % (seq, seqpam)
-		sg = SgRna(seq, constant_region=constant, target_seq=target.seq[sgstart-10:sgend+10], pam=seqpam)
-		sgs.append( sg )
-	for m in antisense_re.finditer( str(target.seq), start, end):
-		seq = str(Seq(m.group(2), generic_dna).reverse_complement())
-		seqpam=Seq(m.group(1), generic_dna).reverse_complement()
-		sgstart=m.start(2)
-		sgend=m.end(2)
-		# print "%s %s reverse" % (seq, seqpam)
-		sg = SgRna( seq, constant_region=constant, target_seq=target.seq[sgstart-10:sgend+10], pam=seqpam )
-		sgs.append( sg )
+	sgs = find_guides( target.seq, start=search_start, end=search_end )
+	print "Found %s potential guides" % len(sgs)
 
 	# score potential sgRNAs		
 	find_offtargets( sgs, genelist="refgene", noncoding=True )
