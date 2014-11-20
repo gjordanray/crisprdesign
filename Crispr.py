@@ -12,6 +12,35 @@ import re
 import random
 import sys
 
+def find_guides( in_seq, sense=True, antisense=True, constant="GUUUUAGAGCUAGAAAUAGCAAGUUAAAAUAAGGCUAGUCCGUUAUCAACUUGAAAAAGUGGCACCGAGUCGGUGCUUUUUU", start=0, end=0 ):
+	# default constant region is Broad-style for cutting
+	# Find potential sgRNAs (defined as 23-mers ending in NGG or starting in CCN) on both plus and minus strands
+	if start == end: # find guides across the entire sequence by default
+		end = len( in_seq )
+	print start, end
+	sgs = []
+	if sense:
+		sense_re=re.compile(r'(?=([ATGCatgc]{20})([ATGCatgc]GG))') #  regex with lookahead to get overlapping sequences. group1 is protospacer, group2 is pam
+		for m in sense_re.finditer(str(in_seq), start, end):
+			protospacer = m.group(1)
+			foundpam = m.group(2)
+			sgstart=m.start(1)
+			sgend=m.end(1)
+			#print "%s %s forward" % (seq, seqpam)
+			sg = SgRna(protospacer, constant_region=constant, target_seq=in_seq[sgstart-10:sgend+10], pam=foundpam)
+			sgs.append( sg )
+	if antisense:
+		antisense_re=re.compile(r'(?=(CC[ATGCatgc])([ATGCatgc]{20}))') # group1 is pam, group2 is protospacer
+		for m in antisense_re.finditer( str(in_seq), start, end):
+			protospacer = str(Seq(m.group(2), generic_dna).reverse_complement())
+			foundpam=Seq(m.group(1), generic_dna).reverse_complement()
+			sgstart=m.start(2)
+			sgend=m.end(2)
+			#print "%s %s reverse" % (seq, seqpam)
+			sg = SgRna( protospacer, constant_region=constant, target_seq=in_seq[sgstart-10:sgend+10], pam=foundpam )
+			sgs.append( sg )
+	return sgs
+
 def hamming_dist( str1, str2 ):
 	diffs=0
 	for ch1, ch2 in zip( str1, str2 ):
