@@ -92,12 +92,12 @@ targets = list( rec.upper() for rec in SeqIO.parse( target_handle, "fasta", alph
 out_fname = sys.argv[2]
 
 weissman_constant = "GUUUAAGAGCUAAGCUGGAAACAGCAUAGCAAGUUUAAAUAAGGCUAGUCCGUUAUCAACUUGAAAAAGUGGCACCGAGUCGGUGCUUUUUUU" # weissman-style constant region for CRISPRi/a
-#	broad_constant = "GUUUUAGAGCUAGAAAUAGCAAGUUAAAAUAAGGCUAGUCCGUUAUCAACUUGAAAAAGUGGCACCGAGUCGGUGCUUUUUU"
+broad_constant = "GUUUUAGAGCUAGAAAUAGCAAGUUAAAAUAAGGCUAGUCCGUUAUCAACUUGAAAAAGUGGCACCGAGUCGGUGCUUUUUU"
 
 
 out_fhandle = open( out_fname, mode="w" )
 for target in targets:
-	sgs = find_guides( target.seq, constant_region=weissman_constant )
+	sgs = find_guides( target.seq, constant_region=broad_constant )
 	print "Found %s potential guides" % len(sgs)
 
 	# score potential sgRNAs		
