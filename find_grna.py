@@ -91,33 +91,13 @@ target_handle = open( target_fname, "rU" )
 targets = list( rec.upper() for rec in SeqIO.parse( target_handle, "fasta", alphabet=generic_dna))
 out_fname = sys.argv[2]
 
-constant = "GUUUAAGAGCUAAGCUGGAAACAGCAUAGCAAGUUUAAAUAAGGCUAGUCCGUUAUCAACUUGAAAAAGUGGCACCGAGUCGGUGCUUUUUUU" # weissman-style constant region for CRISPRi/a
-#	constant = "GUUUUAGAGCUAGAAAUAGCAAGUUAAAAUAAGGCUAGUCCGUUAUCAACUUGAAAAAGUGGCACCGAGUCGGUGCUUUUUU"
+weissman_constant = "GUUUAAGAGCUAAGCUGGAAACAGCAUAGCAAGUUUAAAUAAGGCUAGUCCGUUAUCAACUUGAAAAAGUGGCACCGAGUCGGUGCUUUUUUU" # weissman-style constant region for CRISPRi/a
+#	broad_constant = "GUUUUAGAGCUAGAAAUAGCAAGUUAAAAUAAGGCUAGUCCGUUAUCAACUUGAAAAAGUGGCACCGAGUCGGUGCUUUUUU"
 
-
-# Find potential sgRNAs (defined as 23-mers ending in NGG or starting in CCN) on both plus and minus strands
-sense_re=re.compile(r'(?=([ATGCatgc]{20})([ATGCatgc]GG))') #  regex with lookahead to get overlapping sequences. group1 is protospacer, group2 is pam
-antisense_re=re.compile(r'(?=(CC[ATGCatgc])([ATGCatgc]{20}))') # group1 is pam, group2 is protospacer
 
 out_fhandle = open( out_fname, mode="w" )
 for target in targets:
-	sgs = []
-	for m in sense_re.finditer(str(target.seq)):
-		seq = m.group(1)
-		seqpam = m.group(2)
-		sgstart=m.start(1)
-		sgend=m.end(1)
-		#print "%s %s forward" % (seq, seqpam)
-		sg = SgRna(seq, constant_region=constant, target_seq=target.seq[sgstart-10:sgend+10], pam=seqpam)
-		sgs.append( sg )
-	for m in antisense_re.finditer( str(target.seq)):
-		seq = str(Seq(m.group(2), generic_dna).reverse_complement())
-		seqpam=Seq(m.group(1), generic_dna).reverse_complement()
-		sgstart=m.start(2)
-		sgend=m.end(2)
-		#print "%s %s reverse" % (seq, seqpam)
-		sg = SgRna( seq, constant_region=constant, target_seq=target.seq[sgstart-10:sgend+10], pam=seqpam )
-		sgs.append( sg )
+	sgs = find_guides( target.seq, constant_region=weissman_constant )
 	print "Found %s potential guides" % len(sgs)
 
 	# score potential sgRNAs		
