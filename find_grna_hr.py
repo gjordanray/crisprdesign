@@ -7,9 +7,19 @@ from Bio.SeqFeature import SeqFeature, FeatureLocation
 from Bio.Graphics import GenomeDiagram
 from Bio.Alphabet import generic_dna, generic_rna
 from Bio.Data.CodonTable import unambiguous_dna_by_id
-import sys, subprocess, os, tempfile, copy
+import sys, subprocess, os, tempfile, copy, optparse
 
 from Crispr import *
+
+def read_options( ):
+    parser = optparse.OptionParser()
+    parser.add_option("-f", "--fasta", dest="target_fname", help="Input fasta file. Can contain multiple records.", type="string")
+    parser.add_option("-o", "--out", dest="out_fname", help="Output file name.", type="string")
+    parser.add_option("-g", "--genome", dest="bowtie_genome", help="Bowtie genome to use for offtarget searches.", type="string", default="hg38_noM")
+    parser.add_option("--genbank_out", dest="gbout", help="Write genbank files with mapped sgRNAs and HR templates for each input sequence? default No", action="store_true", default=False)
+    parser.parse_args()
+    (options, args) = parser.parse_args()
+    return options
 
 def parse_target_header( sequence_record ):
 #reads fasta headers of the format
@@ -86,10 +96,14 @@ def plot_sgrnas( target, target_basen, offset, sites ):
 
 
 # start of main script
-target_fname = sys.argv[1]
+options = read_options()
+target_fname = options.fasta
+out_fname = options.out_fname
+bowtie_genome = options.bowtie_genome
+gbout = options.gbout
+	
 target_handle = open( target_fname, "rU" )
 targets = list( rec.upper() for rec in SeqIO.parse( target_handle, "fasta", alphabet=generic_dna))
-out_fname = sys.argv[2]
 
 starting_site_offset = 50 # starting distance around target site for search
 max_site_offset = 50 # max distance on each side of target site for search (symmetric)
