@@ -12,6 +12,8 @@ import re
 import random
 import sys
 
+# requires: ViennaRNA python, bowtie with hg38 genome and *NO* mitochondrial sequences ("hg38_noM"), cleaned refseq file
+
 def find_guides( in_seq, sense=True, antisense=True, constant="GUUUUAGAGCUAGAAAUAGCAAGUUAAAAUAAGGCUAGUCCGUUAUCAACUUGAAAAAGUGGCACCGAGUCGGUGCUUUUUU", start=0, end=0 ):
 	# default constant region is Broad-style for cutting
 	# Find potential sgRNAs (defined as 23-mers ending in NGG or starting in CCN) on both plus and minus strands
@@ -58,7 +60,7 @@ def bowtie_search( sgrna_list, bowtie_mode="scoring" ): # returns dictionary of 
 #			return []
 
 	# antisense_phredString = 'I4!=======44444++++++++'
-	bowtie_constant_options = ['bowtie', '--nomaqround', '--best', '-n 3', '-l 12', '-e 39', '-p 4', '--suppress', '1,6,7', '--chunkmbs', '256', 'hg38'] #note '--chunkmbs 128' and '--suppress 5,6,7'is one option, but subprocess needs them separated. -l 12 -n 3 since phred33 scoring also means can have no more than 3 mismatches in 5' 12 bases
+	bowtie_constant_options = ['bowtie', '--nomaqround', '--best', '-n 3', '-l 12', '-e 39', '-p 4', '--suppress', '1,6,7', '--chunkmbs', '256', 'hg38_noM'] #note '--chunkmbs 128' and '--suppress 5,6,7'is one option, but subprocess needs them separated. -l 12 -n 3 since phred33 scoring also means can have no more than 3 mismatches in 5' 12 bases
 	if bowtie_mode == "scoring":
 		bowtie_constant_options.append( '-a' )
 	elif bowtie_mode == "searching": # only report reads if <10 alignments
