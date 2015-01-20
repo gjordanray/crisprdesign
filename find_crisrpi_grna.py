@@ -27,7 +27,7 @@ def sg_to_seqfeature( target, sg ):
 	feature = SeqFeature( FeatureLocation( location, location+len(sg.protospacer)), strand=strand, type="sgRNA", id=id, qualifiers=quals )
 	return feature
 
-def read_ensembl_tss( self, fname ):
+def read_ensembl_tss( fname ):
 #Ensembl Gene ID,Ensembl Transcript ID,Associated Gene Name,Chromosome Name,Strand,Transcription Start Site (TSS),APPRIS principal isoform annotation
 	handle = open( fname, 'rU')
 	tss_dict = {}
@@ -65,17 +65,7 @@ genome = SeqIO.to_dict(SeqIO.parse( target_handle, "fasta", alphabet=generic_dna
 #targets = list( rec.upper() for rec in SeqIO.parse( target_handle, "fasta", alphabet=generic_dna))
 out_fname = sys.argv[3]
 
-tss_handle = open( tss_fname, "r")
-tss_dict = {}
-for line in tss_handle:
-	if line[0] == "#":
-		continue
-	gene, strand, id, tss, chromosome = line.rstrip().split("\t")
-	try:
-		tss_dict[gene+"_"+id] = ["chr"+chromosome, int(tss), int(strand)]
-	except KeyError:
-		tss_dict.set_default( gene+"_"+id, ["chr"+chromosome, int(tss), int(strand)] )
-tss_handle.close()
+tss_dict = read_ensembl_tss( tss_fname )
 
 weissman_constant = "GUUUAAGAGCUAAGCUGGAAACAGCAUAGCAAGUUUAAAUAAGGCUAGUCCGUUAUCAACUUGAAAAAGUGGCACCGAGUCGGUGCUUUUUUU" # weissman-style constant region for CRISPRi/a
 broad_constant = "GUUUUAGAGCUAGAAAUAGCAAGUUAAAAUAAGGCUAGUCCGUUAUCAACUUGAAAAAGUGGCACCGAGUCGGUGCUUUUUU"
@@ -104,7 +94,7 @@ for id,tx in tss_dict.iteritems():
 		continue
 
 	# Find potential sgRNAs (defined as 23-mers ending in NGG or starting in CCN) on both plus and minus strands
-	sgs = find_guides( target.seq, constant_region=weissman_constant, start=search_start, end=search_end )
+	sgs = find_guides( target.seq, constant=weissman_constant, start=search_start, end=search_end )
 	print "Found %s potential guides" % len(sgs)
 	try:
 		guides[id] = sgs
@@ -114,7 +104,7 @@ for id,tx in tss_dict.iteritems():
 out_fhandle = open( out_fname, mode="w" )
 for id, sgs in guides.iteritems():
 	# score potential sgRNAs		
-	find_offtargets( sgs, genelist="refgene", noncoding=True, mode="searching" )
+	find_offtargets( sgs, genelist="refgene", noncoding=True, mode="searching", bowtie_genome="GRCh38" )
 	for sg in sgs:
 		sg.calculate_score()
 	sgs.sort(key=lambda x: x.score )
