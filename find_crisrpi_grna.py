@@ -27,6 +27,36 @@ def sg_to_seqfeature( target, sg ):
 	feature = SeqFeature( FeatureLocation( location, location+len(sg.protospacer)), strand=strand, type="sgRNA", id=id, qualifiers=quals )
 	return feature
 
+def read_ensembl_tss( self, fname ):
+#Ensembl Gene ID,Ensembl Transcript ID,Associated Gene Name,Chromosome Name,Strand,Transcription Start Site (TSS),APPRIS principal isoform annotation
+	handle = open( fname, 'rU')
+	tss_dict = {}
+	for line in handle:
+		if line[0] == "#":
+			continue
+		geneid, txid, genename, chr, strand, tss, pi = line.rstrip().split(",")
+		#do some format conversion
+		chr = "chr"+chr
+		if strand == '1':
+			strand = '+'
+		else:
+			strand = '-'
+		tss = int(tss)
+		if pi == '':
+			pi = True
+		else:
+			pi = False
+
+		fake_loc = GenomicLocation( chr, 0, 0, strand )
+		fake_exon = Exon( fake_loc, False )
+		fake_tx = Transcript( txid, 0, 0, tss, pi, [fake_exon] )
+		try:
+			tss_dict[txid+"_"+genename] = fake_tx
+		except KeyError:
+			tss_dict.set_default( txid+"_"+genename, fake_tx )
+	handle.close()
+	return tss_dict
+
 # start of main script
 target_fname = sys.argv[1]
 tss_fname = sys.argv[2]
@@ -55,36 +85,34 @@ sense_re=re.compile(r'(?=([ATGCatgc]{20})([ATGCatgc]GG))') #  regex with lookahe
 antisense_re=re.compile(r'(?=(CC[ATGCatgc])([ATGCatgc]{20}))') # group1 is pam, group2 is protospacer
 
 guides = {}
-for gene,data in tss_dict.iteritems():
-	chromosome = data[0]
-	tss = data[1]
-	strand = data[2]
+for id,tx in tss_dict.iteritems():
+	chromosome = tx.get_chromosome()
+	tss = tx.tss
+	strand = tx.get_strand()
 	try:
 		target = genome[chromosome]
 	except KeyError:
 		print "Chromosome %s not found!" % chromosome
 		continue
 		
-	if strand == 1:
-		strand = "+"
-		start, end = [tss-50,tss+300]
-	elif strand == -1: 
-		strand = "-"
-		start, end = [tss-300,tss+50]
+	if strand == "+":
+		search_start, search_end = [tss-50,tss+300]
+	elif strand == "-": 
+		search_start, search_end = [tss-300,tss+50]
 	else:
 		print "Strand not recognized"
 		continue
 
 	# Find potential sgRNAs (defined as 23-mers ending in NGG or starting in CCN) on both plus and minus strands
-	sgs = find_guides( target.seq, constant_region=weissman_constant )
+	sgs = find_guides( target.seq, constant_region=weissman_constant, start=search_start, end=search_end )
 	print "Found %s potential guides" % len(sgs)
 	try:
-		guides[gene] = sgs
+		guides[id] = sgs
 	except KeyError:
-		guides.setdefault( gene, sgs )
+		guides.setdefault( id, sgs )
 
 out_fhandle = open( out_fname, mode="w" )
-for gene, sgs in guides.iteritems():
+for id, sgs in guides.iteritems():
 	# score potential sgRNAs		
 	find_offtargets( sgs, genelist="refgene", noncoding=True, mode="searching" )
 	for sg in sgs:
@@ -93,7 +121,7 @@ for gene, sgs in guides.iteritems():
 
 	for sg in sgs:		
 		score = sg.score
-		out_fhandle.write( "\t".join( [gene, str(sg.protospacer.back_transcribe()), str(sg.pam), str(score), "\n"] ))
+		out_fhandle.write( "\t".join( [id, str(sg.protospacer.back_transcribe()), str(sg.pam), str(score), "\n"] ))
 
 #	outhandle2 = target.id+"_sg.gb"
 #	SeqIO.write( target, outhandle2, "gb" )
