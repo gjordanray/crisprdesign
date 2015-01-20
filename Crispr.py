@@ -53,14 +53,14 @@ def GCcontent( seq ):
 	GC = (seq.count("G") + seq.count("C")) / float(len(seq))
 	return GC
 
-def bowtie_search( sgrna_list, bowtie_mode="scoring" ): # returns dictionary of {protospacer+pam: GenomicLocations}
+def bowtie_search( sgrna_list, genome, bowtie_mode="scoring" ): # returns dictionary of {protospacer+pam: GenomicLocations}
 #	for sg in sgrna_list:
 #		if sg.target_seq == None:
 #			print "Must set target_seq to find offtargets!"
 #			return []
 
 	# antisense_phredString = 'I4!=======44444++++++++'
-	bowtie_constant_options = ['bowtie', '--nomaqround', '--best', '-n 3', '-l 12', '-e 39', '-p 4', '--suppress', '1,6,7', '--chunkmbs', '256', 'hg38_noM'] #note '--chunkmbs 128' and '--suppress 5,6,7'is one option, but subprocess needs them separated. -l 12 -n 3 since phred33 scoring also means can have no more than 3 mismatches in 5' 12 bases
+	bowtie_constant_options = ['bowtie', '--nomaqround', '--best', '-n 3', '-l 12', '-e 39', '-p 4', '--suppress', '1,6,7', '--chunkmbs', '256', genome ] #note '--chunkmbs 128' and '--suppress 5,6,7'is one option, but subprocess needs them separated. -l 12 -n 3 since phred33 scoring also means can have no more than 3 mismatches in 5' 12 bases
 	if bowtie_mode == "scoring":
 		bowtie_constant_options.append( '-a' )
 	elif bowtie_mode == "searching": # only report reads if <10 alignments
@@ -162,10 +162,10 @@ def _read_refgene( fname ):
 	fhandle.close()
 	return genes
 
-def find_offtargets( sgrna_list, genelist="refgene", noncoding=True, mode="scoring" ):
+def find_offtargets( sgrna_list, genelist="refgene", noncoding=True, mode="scoring", bowtie_genome="hg38_noM" ):
 	# run bowtie for protospacer, including PAM
 	if mode == "scoring" or mode == "searching":
-		genomic_sites = bowtie_search( sgrna_list, bowtie_mode=mode )
+		genomic_sites = bowtie_search( sgrna_list, genome=bowtie_genome, bowtie_mode=mode )
 	else:
 		print "Offtarget mode not recognized!"
 		return
@@ -243,6 +243,60 @@ class GenomicLocation:
 		return hash
 	def __str__( self ):
 		return "%s %s:%s%s" % (self.chr, self.start, self.end, self.strand)
+
+class Gene:
+	def __init__(self, id, start, end, transcripts):
+		self.id = id
+		self.start = start
+		self.end = end
+		self.transcripts = transcripts
+	def __str__( self ):
+		return "Gene %s %s %s %s" % (self.id, self.start, self.end, self.transcripts)
+	def get_chromosome( self ):
+		chrs = set(t.get_chromosome() for t in self.transcripts)
+		if len( chrs ) == 1:
+			return chrs.pop()
+		else:
+			print "Found mixed transcript chromosomes!"
+			return 0
+	def get_strand( self ):
+		strands = set( t.get_strand() for t in self.transcripts)
+		if len( strands ) == 1:
+			return strands.pop()
+		else:
+			print "Found mixed transcript strands!"
+			return 0
+	
+class Transcript:
+	def __init__(self, id, start, end, tss, principal_isoform, exons):
+		self.id = id
+		self.start = start
+		self.end = end
+		self.tss = tss
+		self.prin_iso = principal_isoform
+		self.exons = exons
+	def __str__( self ):
+		return "Transcript %s %s %s" % (self.id, self.start, self.end, self.tss, self.prin_iso, self.exons)
+	def get_chromosome( self ):
+		chrs = set(exon.location.chr for exon in self.exons)
+		if len( chrs ) == 1:
+			return chrs.pop()
+		else:
+			print "Found mixed exon chromosomes!"
+			return 0
+	def get_strand( self ):
+		strands = set( e.location.strand for e in self.exons )
+		if len( strands ) == 1:
+			return strands.pop()
+		else:
+			print "Found mixed exon strands!"
+			return 0
+class Exon:
+	def __init__(self, location, constitutive):
+		self.location = location
+		self.constitutive = constitutive
+	def __str__( self ):
+		return "Exon %s %s" % (self.location, self.constitutive)
 
 class HrTemplate:
 	def __init__(self, seq):
