@@ -74,6 +74,7 @@ broad_constant = "GUUUUAGAGCUAGAAAUAGCAAGUUAAAAUAAGGCUAGUCCGUUAUCAACUUGAAAAAGUGG
 sense_re=re.compile(r'(?=([ATGCatgc]{20})([ATGCatgc]GG))') #  regex with lookahead to get overlapping sequences. group1 is protospacer, group2 is pam
 antisense_re=re.compile(r'(?=(CC[ATGCatgc])([ATGCatgc]{20}))') # group1 is pam, group2 is protospacer
 
+out_fhandle = open( out_fname, mode="w" )
 guides = {}
 for id,tx in tss_dict.iteritems():
 	chromosome = tx.get_chromosome()
@@ -96,12 +97,13 @@ for id,tx in tss_dict.iteritems():
 	# Find potential sgRNAs (defined as 23-mers ending in NGG or starting in CCN) on both plus and minus strands
 	sgs = find_guides( target.seq, constant=weissman_constant, start=search_start, end=search_end )
 	print "Found %s potential guides" % len(sgs)
+	if len(sgs) == 0:
+		out_fhandle.write( "\t".join( [id, 'x'*20, 'x'*3, str(1e6), "\n"] ))
 	try:
 		guides[id] = sgs
 	except KeyError:
 		guides.setdefault( id, sgs )
 
-out_fhandle = open( out_fname, mode="w" )
 for id, sgs in guides.iteritems():
 	# score potential sgRNAs		
 	find_offtargets( sgs, genelist="refgene", noncoding=True, mode="searching", bowtie_genome="GRCh38" )
