@@ -11,6 +11,7 @@ import subprocess
 import re
 import random
 import sys
+import multiprocessing
 
 # requires: ViennaRNA python, bowtie with hg38 genome and *NO* mitochondrial sequences ("hg38_noM"), cleaned refseq file
 
@@ -59,8 +60,12 @@ def bowtie_search( sgrna_list, genome, bowtie_mode="scoring" ): # returns dictio
 #			print "Must set target_seq to find offtargets!"
 #			return []
 
+	# use all cpus except for 1
+	ncpus = multiprocessing.cpu_count()
+	if ncpus > 1:
+		ncpus = ncpus - 1
 	# antisense_phredString = 'I4!=======44444++++++++'
-	bowtie_constant_options = ['bowtie', '--nomaqround', '--best', '-n 3', '-l 12', '-e 39', '-p 4', '--suppress', '1,6,7', '--chunkmbs', '256', genome ] #note '--chunkmbs 128' and '--suppress 5,6,7'is one option, but subprocess needs them separated. -l 12 -n 3 since phred33 scoring also means can have no more than 3 mismatches in 5' 12 bases
+	bowtie_constant_options = ['bowtie', '--nomaqround', '--best', '-n 3', '-l 12', '-e 39', '-p '+ncpus, '--suppress', '1,6,7', '--chunkmbs', '256', genome ] #note '--chunkmbs 128' and '--suppress 5,6,7'is one option, but subprocess needs them separated. -l 12 -n 3 since phred33 scoring also means can have no more than 3 mismatches in 5' 12 bases
 	if bowtie_mode == "scoring":
 		bowtie_constant_options.append( '-a' )
 	elif bowtie_mode == "searching": # only report reads if <10 alignments
