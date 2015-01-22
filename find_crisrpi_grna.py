@@ -42,7 +42,7 @@ def read_ensembl_tss( fname ):
 		else:
 			strand = '-'
 		tss = int(tss)
-		if pi == '':
+		if pi == '' or pi == '0':
 			pi = False
 		else:
 			pi = True
