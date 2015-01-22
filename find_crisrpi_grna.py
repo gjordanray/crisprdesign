@@ -43,9 +43,9 @@ def read_ensembl_tss( fname ):
 			strand = '-'
 		tss = int(tss)
 		if pi == '':
-			pi = True
-		else:
 			pi = False
+		else:
+			pi = True
 
 		fake_loc = GenomicLocation( chr, 0, 0, strand )
 		fake_exon = Exon( fake_loc, False )
