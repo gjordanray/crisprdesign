@@ -11,6 +11,16 @@ import sys, subprocess, os, tempfile, copy
 
 from Crispr import *
 
+def read_options( ):
+    parser = optparse.OptionParser()
+    parser.add_option("-f", "--fasta", dest="target_fname", help="Input fasta file. Can contain multiple records.", type="string")
+    parser.add_option("-o", "--out", dest="out_fname", help="Output file name.", type="string")
+    parser.add_option("-g", "--genome", dest="bowtie_genome", help="Bowtie genome to use for offtarget searches.", type="string", default="hg38_noM")
+    parser.add_option("--genbank_out", dest="gbout", help="Write genbank files with mapped sgRNAs and HR templates for each input sequence? default No", action="store_true", default=False)
+    parser.parse_args()
+    (options, args) = parser.parse_args()
+    return options
+
 def parse_target_header( sequence_record ):
 #reads fasta headers of the format
 #>id, start base,premutation sequence,end base,postmutation sequence
@@ -97,7 +107,7 @@ broad_constant = "GUUUUAGAGCUAGAAAUAGCAAGUUAAAAUAAGGCUAGUCCGUUAUCAACUUGAAAAAGUGG
 
 out_fhandle = open( out_fname, mode="w" )
 for target in targets:
-	sgs = find_guides( target.seq, constant_region=broad_constant )
+	sgs = find_guides( target.seq, constant=broad_constant )
 	print "Found %s potential guides" % len(sgs)
 
 	# score potential sgRNAs		
