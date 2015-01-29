@@ -54,7 +54,7 @@ def GCcontent( seq ):
 	GC = (seq.count("G") + seq.count("C")) / float(len(seq))
 	return GC
 
-def bowtie_search( sgrna_list, genome, bowtie_mode="scoring" ): # returns dictionary of {protospacer+pam: GenomicLocations}
+def bowtie_search( sgrna_list, genome, bowtie_mode="searching" ): # returns dictionary of {protospacer+pam: GenomicLocations}
 #	for sg in sgrna_list:
 #		if sg.target_seq == None:
 #			print "Must set target_seq to find offtargets!"
@@ -64,9 +64,11 @@ def bowtie_search( sgrna_list, genome, bowtie_mode="scoring" ): # returns dictio
 	ncpus = multiprocessing.cpu_count()
 	if ncpus > 1:
 		ncpus = ncpus - 1
-	# antisense_phredString = 'I4!=======44444++++++++'
+#	phred33String = '++++++++44444=======!4I'
+	antisense_phred33String = 'I4!=======44444++++++++' # use antisense pattern so bowtie 5' seed usage corresponds to stringent part of PAM+protospacer
+	phred33String = antisense_phred33String
 	bowtie_constant_options = ['bowtie', '--nomaqround', '--best', '-n 3', '-l 12', '-e 39', '-p '+str(ncpus), '--suppress', '1,6,7', '--chunkmbs', '256', genome ] #note '--chunkmbs 128' and '--suppress 5,6,7'is one option, but subprocess needs them separated. -l 12 -n 3 since phred33 scoring also means can have no more than 3 mismatches in 5' 12 bases
-	if bowtie_mode == "scoring":
+	if bowtie_mode == "scoring": # report all alignments
 		bowtie_constant_options.append( '-a' )
 	elif bowtie_mode == "searching": # only report reads if <10 alignments
 		bowtie_constant_options.extend( ['-m', '10'] )
@@ -76,20 +78,21 @@ def bowtie_search( sgrna_list, genome, bowtie_mode="scoring" ): # returns dictio
 
 	i=1
 	for sg in sgrna_list:
-		phred33String = '++++++++44444=======!4I'
 		protospacerpam = sg.build_protospacerpam()
 		if sg.pam == "": # missing PAM
 			phred33String = phred33String[:-3]
 		if len(phred33String) > len(protospacerpam):
 			while len( phred33String ) > len( protospacerpam ):
-				phred33String = phred33String[1:] # try removing from the 5' end
+				# phred33String = phred33String[1:] # try removing from the 5' end
+				phred33String = phred33String[:-1] # try removing from the 3' end
 			if (len( phred33String ) < 18) or (len( protospacerpam) != len( phred33String )): # protospacer shorter than a 18mer usually doesn't make sense
 				print "Can't figure out phred33String to use! Check manually."
 				print "%s %s %s" % (phred33String, protospacerpam, sg.protospacer)
 				return None
 		elif len(phred33String) < len(protospacerpam): # prepend a 0-penalty character
 			while len( phred33String ) < len( protospacerpam ):
-				phred33String = "+"+phred33String
+				#phred33String = "+"+phred33String # add to 5' end of phred33 pattern
+				phred33String = phred33String+"+" # add to 3' end of phred33 pattern
 			if (len( phred33String ) > 40) or (len( protospacerpam) != len( phred33String )): # protospacer longer than a 40mer usually doesn't make sense
 				print "Can't figure out phred33String to use! Check manually."
 				print "%s %s %s" % (phred33String, protospacerpam, sg.protospacer)
@@ -97,13 +100,15 @@ def bowtie_search( sgrna_list, genome, bowtie_mode="scoring" ): # returns dictio
 		assert( len( protospacerpam) == len( phred33String ) )
 		temp_bowtiein.write('@'+str(i)+'\n')
 		#print sg.build_protospacerpam()
-		temp_bowtiein.write( str(protospacerpam)+'\n')			
+
+		# protospacerpam stored as 5'-3'protospacer followed by pam
+		# reverse everything so that seed sequence is located in the PAM+3' end of protospacer
+		temp_bowtiein.write( str(protospacerpam.reverse_complement())+'\n')			
 		temp_bowtiein.write('+\n')
 		temp_bowtiein.write(phred33String+'\n')
 	temp_bowtiein.flush() #necessary for bowtie to read files
 
 	temp_bowtieout = tempfile.NamedTemporaryFile(delete=True)
-	#temp_bowtieout = "bowtie.out"
 	bowtie_cmdline = list(bowtie_constant_options)
 	bowtie_cmdline.append(temp_bowtiein.name)
 	bowtie_cmdline.append(temp_bowtieout.name)
@@ -122,7 +127,11 @@ def bowtie_search( sgrna_list, genome, bowtie_mode="scoring" ): # returns dictio
 		l = line.strip().split('\t')
 		s = Seq( l[3], generic_dna )
 		loc = GenomicLocation( l[1], long(l[2]), long(l[2])+len(s), l[0] ) # format of bowtie output is strand, chr, start, sequence of read (revcomp if - strand mapped)
-		if loc.strand == "-":
+		# previously revcomped sequence for phred33 pattern. 
+		# if found sequence is on + strand, reverse it back now to match protospacer+pam
+		# if found sequence is on - strand then already matches
+		# all found sequences should now be protospacer+pam, ending in NGG
+		if loc.strand == "+":
 			s = s.reverse_complement()
 		try:
 			found_locations[str(s)].append( loc )
@@ -130,7 +139,6 @@ def bowtie_search( sgrna_list, genome, bowtie_mode="scoring" ): # returns dictio
 			found_locations.setdefault( str(s), [loc] ) # need to convert back to string for proper key referencing
 		i+=1
 	temp_bowtieout.close()
-	#print found_locations
 	print "Done!"
 	return found_locations
 
