@@ -138,7 +138,7 @@ for target in targets:
 	print "Found %s potential guides" % len(sgs)
 
 	# score potential sgRNAs		
-	find_offtargets( sgs, genelist="refgene", noncoding=True )
+	find_offtargets( sgs, genome=bowtie_genome, genelist="refgene", noncoding=True )
 	for sg in sgs:
 		sg.calculate_score()
 	sgs.sort(key=lambda x: x.score )
@@ -175,9 +175,11 @@ for target in targets:
 		out_fhandle.write( "\t".join( [target_id+"_"+str(i), str(sg.protospacer.back_transcribe()), str(sg.build_fullseq()), str(score), str(hr.seq), "\n"] ))
 		i+=1
 
-	feature = SeqFeature( FeatureLocation( target_basestart, target_baseend), strand=None, type="mutation", id=target_mutation, qualifiers={"mutation": target_mutation} )
-	target.features.append( feature )
-	outhandle2 = target_id.split(",")[0]+"_sg.gb"
-	target.name = target_id.split(",")[0]
-	SeqIO.write( target, outhandle2, "gb" )
+	if gbout:
+		feature = SeqFeature( FeatureLocation( target_basestart, target_baseend), strand=None, type="mutation", id=target_mutation, qualifiers={"mutation": target_mutation} )
+		target.features.append( feature )
+		outhandle2 = target_id.split(",")[0]+"_sg.gb"
+		#target.name = target_id.split(",")[0]
+		SeqIO.write( target, outhandle2, "gb" )
+	
 out_fhandle.close()
