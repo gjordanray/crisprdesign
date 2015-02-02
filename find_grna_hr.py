@@ -13,18 +13,25 @@ from Crispr import *
 
 def read_options( ):
     parser = optparse.OptionParser()
-    parser.add_option("-f", "--fasta", dest="target_fname", help="Input fasta file. Can contain multiple records.", type="string")
+    parser.add_option("-f", "--fasta", dest="fasta", help="Input fasta file. Can contain multiple records.", type="string")
+	parser.add_option("-g", "--genbank", dest="genbank", help="Input genbank file. Can contain multiple records.", type="string")
     parser.add_option("-o", "--out", dest="out_fname", help="Output file name.", type="string")
-    parser.add_option("-g", "--genome", dest="bowtie_genome", help="Bowtie genome to use for offtarget searches.", type="string", default="hg38_noM")
+    parser.add_option("--genome", dest="bowtie_genome", help="Bowtie genome to use for offtarget searches.", type="string", default="GRCh38")
     parser.add_option("--genbank_out", dest="gbout", help="Write genbank files with mapped sgRNAs and HR templates for each input sequence? default No", action="store_true", default=False)
     parser.parse_args()
     (options, args) = parser.parse_args()
+    if not options.out:
+    	parser.error( "Must supply output file with -o.")
+    if not options.fasta and not options.genbank:
+    	parser.error( "Must supply an input file with either -f or -g.")
+    if options.fasta and options.genbank:
+    	parser.error( "-f and -g are mutually exclusive: specify either a fasta or genbank format input sequence")
     return options
 
 def parse_target_header( sequence_record ):
-#reads fasta headers of the format
-#>id, start base,premutation sequence,end base,postmutation sequence
-#for example
+# fasta headers or genbank ids should be in the format
+#id, start base,premutation sequence,end base,postmutation sequence
+#for example (fasta)
 #>gene foo bar,100,ATG,103,TAA
 	id, start, seq, end, mutation = sequence_record.id.split(",")
 	start = int(start)
@@ -59,50 +66,17 @@ def hr_to_seqfeature( target, hr ):
 	feature = SeqFeature( FeatureLocation( location, location+len(hr.seq)), strand=strand, type="hrtemplate", id=id, qualifiers=quals)
 	return feature
 
-def plot_sgrnas( target, target_basen, offset, sites ):
-	gd_diagram = GenomeDiagram.Diagram( )
-	gd_track_for_features = gd_diagram.new_track(1, name="sgRNAs")
-	gd_feature_set = gd_track_for_features.new_set()
-	for site in sites:
-		record = site[0].split('_')
-		target_sequence = record[0]
-		target_id = record[1]
-		strand = record[2]
-		sgrna = ''
-		if strand == 'sense':
-			sgrna = Seq(target_sequence[:-2], generic_dna)
-		elif strand== 'as':
-			sgrna = Seq(target_sequence[2:], generic_dna)
-			sgrna = sgrna.reverse_complement()
-		else:
-			print "Strand not recognized!"
-		start = target.seq.find( target_sequence )
-		if strand == 'sense':
-			feature = SeqFeature(FeatureLocation(start,start+23),strand=+1)
-			gd_feature_set.add_feature(feature, color="cyan", label=True, name=str(sgrna), label_angle=0, sigil="ARROW")
-		else:
-			feature = SeqFeature(FeatureLocation(start,start+23),strand=-1)
-			gd_feature_set.add_feature(feature, color="blue", label=True, name=str(sgrna), label_angle=0, sigil="ARROW")
-		print target_sequence, target_id, strand, sgrna
-
-	feature = SeqFeature(FeatureLocation(target_basestart, target_basestart+1))
-	gd_feature_set.add_feature(feature, color="red", label=False)
-	
-	feature = SeqFeature(FeatureLocation(0, len(target.seq)), strand=+1)
-	gd_feature_set.add_feature(feature, color="blue", label=True, name=str(target), label_angle=0, hide=False, label_size=25)
-	
-	gd_diagram.draw(format="linear", pagesize='LETTER', fragments=1, start=target_basen-offset, end=target_basen+offset)
-	gd_diagram.write(target_id+".pdf", "PDF")
-
-
 # start of main script
 options = read_options()
-target_fname = options.fasta
 out_fname = options.out_fname
 bowtie_genome = options.bowtie_genome
 gbout = options.gbout
 	
 target_handle = open( target_fname, "rU" )
+if options.fasta:
+	target_fname = options.fasta
+elif options.genbank:
+	target_fname = options.fasta
 targets = list( rec.upper() for rec in SeqIO.parse( target_handle, "fasta", alphabet=generic_dna))
 
 starting_site_offset = 50 # starting distance around target site for search
@@ -110,13 +84,9 @@ max_site_offset = 50 # max distance on each side of target site for search (symm
 min_unique_sites = 2 # minimum number of unique sequences to find around the target site
 
 out_fhandle = open( out_fname, mode="w" )
-
-# Find potential sgRNAs (defined as 23-mers ending in NGG or starting in CCN) on both plus and minus strands
-sense_re=re.compile(r'(?=([ATGCatgc]{20})([ATGCatgc]GG))') #  regex with lookahead to get overlapping sequences. group1 is protospacer, group2 is pam
-antisense_re=re.compile(r'(?=(CC[ATGCatgc])([ATGCatgc]{20}))') # group1 is pam, group2 is protospacer
+broad_constant = "GUUUUAGAGCUAGAAAUAGCAAGUUAAAAUAAGGCUAGUCCGUUAUCAACUUGAAAAAGUGGCACCGAGUCGGUGCUUUUUU"
 
 for target in targets:
-
 	# parse headers
 	target_id, target_basestart, target_baseend, target_seq, target_mutation = parse_target_header( target )
 	print "Targeting bases %i-%i:%s->%s in %s" % (target_basestart, target_baseend, target_seq, target_mutation, target_id)
@@ -134,7 +104,7 @@ for target in targets:
 		print "Target site not valid: %d" % target_basestart
 
 	# Find potential sgRNAs (defined as 23-mers ending in NGG or starting in CCN) on both plus and minus strands
-	sgs = find_guides( target.seq, start=search_start, end=search_end )
+	sgs = find_guides( target.seq, constant = broad_constant, start=search_start, end=search_end )
 	print "Found %s potential guides" % len(sgs)
 
 	# score potential sgRNAs		
@@ -147,7 +117,12 @@ for target in targets:
 	hr_sg_list = []
 	hr = HrTemplate( target.seq[target_basestart-100:target_basestart-1] + target_mutation + target.seq[target_baseend:target_baseend+100] ) # split sgrna evenly, return 90 bases on either side (200 bases total)
 	hr.target_seq = target.seq[target_basestart-100:target_baseend+100]
-	hr.find_frame()
+	# fasta files don't contain coding frame, so must find it ourselves
+	if options.fasta:
+		hr.find_frame()
+	elif options.genbank:
+		
+		hr.frame = 
 	for sg in sgs:
 		temp_hr = copy.deepcopy(hr) # need to make a deepcopy so that only the pam of the current sgrna is removed
 		if not hr.remove_pam( sg ): # used for all-at-once PAM removal
