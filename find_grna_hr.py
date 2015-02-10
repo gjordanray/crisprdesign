@@ -93,11 +93,6 @@ for target in targets:
 	if (target_basestart < 0 or target_basestart >= len(target.seq)):
 		print "Target site not valid: %d" % target_basestart
 		sys.exit(0)
-	# TODO
-	if options.genbank:
-		for feature in target.features:
-			if feature.type == "CDS":
-				if target_basestart in feature or target_baseend in feature:
 
 	# set search window
 	site_offset = starting_site_offset
