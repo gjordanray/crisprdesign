@@ -84,7 +84,7 @@ max_site_offset = 50 # max distance on each side of target site for search (symm
 min_unique_sites = 2 # minimum number of unique sequences to find around the target site
 
 out_fhandle = open( out_fname, mode="w" )
-constant_region = "GUUUUAGAGCUAGAAAUAGCAAGUUAAAAUAAGGCUAGUCCGUUAUCAACUUGAAAAAGUGGCACCGAGUCGGUGCUUUUUU"
+broad_constant = "GUUUUAGAGCUAGAAAUAGCAAGUUAAAAUAAGGCUAGUCCGUUAUCAACUUGAAAAAGUGGCACCGAGUCGGUGCUUUUUU"
 
 for target in targets:
 	# parse headers
@@ -93,15 +93,11 @@ for target in targets:
 	if (target_basestart < 0 or target_basestart >= len(target.seq)):
 		print "Target site not valid: %d" % target_basestart
 		sys.exit(0)
-	# TODO figure out frame
+	# TODO
 	if options.genbank:
 		for feature in target.features:
 			if feature.type == "CDS":
-				for x in range(target_basestart, target_baseend+1):
-					if x in feature:
-						in_cds.append( True )
-					else:
-						in_cds.append( False )
+				if target_basestart in feature or target_baseend in feature:
 
 	# set search window
 	site_offset = starting_site_offset
@@ -113,7 +109,7 @@ for target in targets:
 		print "Target site not valid: %d" % target_basestart
 
 	# Find potential sgRNAs (defined as 23-mers ending in NGG or starting in CCN) on both plus and minus strands
-	sgs = find_guides( target.seq, constant = constant_region, start=search_start, end=search_end )
+	sgs = find_guides( target.seq, constant = broad_constant, start=search_start, end=search_end )
 	print "Found %s potential guides" % len(sgs)
 
 	# score potential sgRNAs		
