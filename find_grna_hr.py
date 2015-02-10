@@ -72,12 +72,15 @@ out_fname = options.out_fname
 bowtie_genome = options.bowtie_genome
 gbout = options.gbout
 	
-target_handle = open( target_fname, "rU" )
+
 if options.fasta:
 	target_fname = options.fasta
+	target_handle = open( target_fname, "rU" )
+	targets = list( rec.upper() for rec in SeqIO.parse( target_handle, "fasta", alphabet=generic_dna))
 elif options.genbank:
-	target_fname = options.fasta
-targets = list( rec.upper() for rec in SeqIO.parse( target_handle, "fasta", alphabet=generic_dna))
+	target_fname = options.genbank
+	target_handle = open( target_fname, "rU" )
+	targets = list( rec.upper() for rec in SeqIO.parse( target_handle, "genbank", alphabet=generic_dna))
 
 starting_site_offset = 50 # starting distance around target site for search
 max_site_offset = 50 # max distance on each side of target site for search (symmetric)
