@@ -240,6 +240,13 @@ def find_offtargets( sgrna_list, genelist="refgene", noncoding=True, mode="scori
 #		print
 
 class GenomicLocation:
+	"""Holds information about a location in a genome.
+	Args:
+		chr(str): chromosome
+		start(int): location start (1-indexed)
+		end(int): location end (1-indexed)
+		strand(str): - or +
+	"""
 	def __init__(self, chr, start, end, strand):
 		#instance variables
 		self.chr = chr
@@ -258,6 +265,13 @@ class GenomicLocation:
 		return "%s %s:%s%s" % (self.chr, self.start, self.end, self.strand)
 
 class Gene:
+	"""Holds information about a gene
+	Args:
+		id(str): some kind of identification (arbitrary)
+		start(int): gene start
+		end(int): gene end
+		transcripts([Transcripts]): Transcript objects encoded by this gene
+	"""
 	def __init__(self, id, start, end, transcripts):
 		self.id = id
 		self.start = start
@@ -281,6 +295,15 @@ class Gene:
 			return 0
 	
 class Transcript:
+	"""Holds information about a transcript.
+	Args:
+		id(str): some kind of identification (arbitrary)
+		start(int): transcript start
+		end(int): transcript end
+		tss(int): transcription start site (redundant with start?)
+		prin_iso(bool): is this the principal isoform?
+		exons([Exons]): Exon objects contained within this transcript 
+	"""
 	def __init__(self, id, start, end, tss, principal_isoform, exons):
 		self.id = id
 		self.start = start
@@ -305,6 +328,11 @@ class Transcript:
 			print "Found mixed exon strands!"
 			return 0
 class Exon:
+	"""Holds information about an exon.
+	Args:
+		location(GenomicLocation): where is this exon located?
+		constitutive(bool): is this a constitutive exon?
+	"""
 	def __init__(self, location, constitutive):
 		self.location = location
 		self.constitutive = constitutive
