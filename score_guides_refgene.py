@@ -11,6 +11,8 @@ import sys, subprocess, os, tempfile
 
 from crisprdesign import *
 
+# author Jacob Corn jcorn@berkeley.edu
+
 guides_fname = sys.argv[1]
 out_fname = sys.argv[2]
 guides_handle = open( guides_fname, mode="rU" )

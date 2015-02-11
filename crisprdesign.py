@@ -14,6 +14,7 @@ import sys
 import multiprocessing
 
 # requires: ViennaRNA python, bowtie with hg38 genome and *NO* mitochondrial sequences ("hg38_noM"), cleaned refseq file
+# Author: Jacob Corn. jcorn@berkeley.edu
 
 def find_guides( in_seq, sense=True, antisense=True, constant="GUUUUAGAGCUAGAAAUAGCAAGUUAAAAUAAGGCUAGUCCGUUAUCAACUUGAAAAAGUGGCACCGAGUCGGUGCUUUUUU", start=0, end=0 ):
 	"""Find potential sgRNAs within a sequence, using a sliding window.

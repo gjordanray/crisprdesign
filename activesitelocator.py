@@ -9,6 +9,7 @@ from Bio.Seq import reverse_complement, translate
 import sys
 import csv
 import os
+# Author: Jordan Ray gjordanray@gmail.com
 # Finds genomic DNA coordinates from protein coordinates.
 # inputs: genbank file of protein, AA seq of protein, Active site of protein #, mutation to be made (Amino acid to amino acid)
 # output: genbank file of protein, Start location of changed codon, current codon, end location, codon to change to

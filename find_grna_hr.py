@@ -11,6 +11,8 @@ import sys, subprocess, os, tempfile, copy, optparse
 
 from crisprdesign import *
 
+# author Jacob Corn jcorn@berkeley.edu
+
 def read_options( ):
     parser = optparse.OptionParser()
     parser.add_option("-f", "--fasta", dest="fasta", help="Input fasta file. Can contain multiple records.", type="string")

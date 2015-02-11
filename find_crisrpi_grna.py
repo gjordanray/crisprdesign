@@ -11,6 +11,8 @@ import sys, subprocess, os, tempfile, copy
 
 from crisprdesign import *
 
+# author Jacob Corn jcorn@berkeley.edu
+
 def sg_to_seqfeature( target, sg ):
 	location = target.seq.find( sg.protospacer.back_transcribe() )
 	if location == -1:
