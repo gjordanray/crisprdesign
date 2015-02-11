@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from crispr import SgRna, HrTemplate, GenomicLocation
+from crisprdesign import SgRna, HrTemplate, GenomicLocation
 from Bio.Seq import Seq, MutableSeq
 from Bio.Alphabet import generic_dna, generic_rna
 

@@ -9,7 +9,7 @@ from Bio.Alphabet import generic_dna, generic_rna
 from Bio.Data.CodonTable import unambiguous_dna_by_id
 import sys, subprocess, os, tempfile, copy
 
-from Crispr import *
+from crisprdesign import *
 
 def sg_to_seqfeature( target, sg ):
 	location = target.seq.find( sg.protospacer.back_transcribe() )
