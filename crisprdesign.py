@@ -340,6 +340,13 @@ class Exon:
 		return "Exon %s %s" % (self.location, self.constitutive)
 
 class HrTemplate:
+	"""Holds information about a template for homologous recombination.
+	Args:
+		seq(Bio.Seq): sequence of the HR template
+		target_site(GenomicLocation): genomic location the template is targeting
+		target_seq(Bio.Seq): sequence of the targeted site
+		frame(int): can be +1, +2, +3, -1, -2, -3, or 0 (non-coding)	
+	"""
 	def __init__(self, seq):
 		# instance variables
 		self.seq = Seq(str(seq), generic_dna) # sequence of the hr template itself
@@ -428,6 +435,16 @@ class HrTemplate:
 		return False			
 
 class SgRna:
+	"""Holds information about a single guide RNA.
+	Args:
+		protospacer(Bio.Seq): sequence of the protospacer (sans constant portion). Can only be set on initialization.
+		target_site(GenomicLocation): location targeted by the protospacer
+		target_seq(str): sequence window +/- 10 bases around protospacer (can be used to find PAM)
+		offtarget_sites{GenomicLocation: [geneid1, geneid2,...]}: holds info about potential offtarget sites found in genome of interest, including if those offtargets fall within genes
+		pam(str): protospacer adjacent motif for this guide
+		constant_region(Bio.Seq): constant region associated with this guide. Used to calculate secondary structure.
+		score(float): score of this guide
+	"""
 	# instance variables
 	def __init__(self, seq, constant_region="GUUUUAGAGCUAGAAAUAGCAAGUUAAAAUAAGGCUAGUCCGUUAUCAACUUGAAAAAGUGGCACCGAGUCGGUGCUUUUUU", target_site=None, target_seq="", pam="" ):
 					  # weissman constant = "GUUUAAGAGCUAAGCUGGAAACAGCAUAGCAAGUUUAAAUAAGGCUAGUCCGUUAUCAACUUGAAAAAGUGGCACCGAGUCGGUGCUUUUUUU"
