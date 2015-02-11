@@ -16,6 +16,16 @@ import multiprocessing
 # requires: ViennaRNA python, bowtie with hg38 genome and *NO* mitochondrial sequences ("hg38_noM"), cleaned refseq file
 
 def find_guides( in_seq, sense=True, antisense=True, constant="GUUUUAGAGCUAGAAAUAGCAAGUUAAAAUAAGGCUAGUCCGUUAUCAACUUGAAAAAGUGGCACCGAGUCGGUGCUUUUUU", start=0, end=0 ):
+	"""Find potential sgRNAs within a sequence, using a sliding window.
+	Args:
+		in_seq(Bio.Seq): input sequence
+		sense(bool): search sense strand
+		antisense(bool): search antisense strand
+		constant(string): sequence of constant region to set for guides
+		start(int): index in the sequence to start finding guides
+		end(int): index in the sequence to end finding guides
+	"""
+
 	# default constant region is Broad-style for cutting
 	# Find potential sgRNAs (defined as 23-mers ending in NGG or starting in CCN) on both plus and minus strands
 	if start == end: # find guides across the entire sequence by default
@@ -44,6 +54,11 @@ def find_guides( in_seq, sense=True, antisense=True, constant="GUUUUAGAGCUAGAAAU
 	return sgs
 
 def hamming_dist( str1, str2 ):
+	"""Find hamming distance of two sequences
+	Args:
+		str1(string)
+		str2(string)
+	"""
 	diffs=0
 	for ch1, ch2 in zip( str1, str2 ):
 		if ch1 != ch2:
@@ -51,10 +66,21 @@ def hamming_dist( str1, str2 ):
 	return diffs
 
 def GCcontent( seq ):
+	"""Find fractional GC content of sequence
+	Args:
+		seq(Bio.Seq): input sequence
+	"""
 	GC = (seq.count("G") + seq.count("C")) / float(len(seq))
 	return GC
 
-def bowtie_search( sgrna_list, genome, bowtie_mode="searching" ): # returns dictionary of {protospacer+pam: GenomicLocations}
+def bowtie_search( sgrna_list, genome, mode="searching" ): # returns dictionary of {protospacer+pam: GenomicLocations}
+	"""Use bowtie to find where guides map to a genome. Called by find_offtargets()
+	Args:
+		sgrna_list([SgRna1, SgRna2,...]): guides for which to find offtargets
+		mode(string): search for guides or score existing guides. can be "searching" or "scoring". searching cuts short bowtie search at 10 offtarget sites. scoring finds all offtarget sites.
+		genome(string): bowtie index to use for finding offtargets.
+	"""
+
 #	for sg in sgrna_list:
 #		if sg.target_seq == None:
 #			print "Must set target_seq to find offtargets!"
@@ -68,9 +94,9 @@ def bowtie_search( sgrna_list, genome, bowtie_mode="searching" ): # returns dict
 	antisense_phred33String = 'I4!=======44444++++++++' # use antisense pattern so bowtie 5' seed usage corresponds to stringent part of PAM+protospacer
 	phred33String = antisense_phred33String
 	bowtie_constant_options = ['bowtie', '--nomaqround', '--best', '-n 3', '-l 12', '-e 39', '-p '+str(ncpus), '--suppress', '1,6,7', '--chunkmbs', '256', genome ] #note '--chunkmbs 128' and '--suppress 5,6,7'is one option, but subprocess needs them separated. -l 12 -n 3 since phred33 scoring also means can have no more than 3 mismatches in 5' 12 bases
-	if bowtie_mode == "scoring": # report all alignments
+	if mode == "scoring": # report all alignments
 		bowtie_constant_options.append( '-a' )
-	elif bowtie_mode == "searching": # only report reads if <10 alignments
+	elif mode == "searching": # only report reads if <10 alignments
 		bowtie_constant_options.extend( ['-m', '10'] )
 	
 	temp_bowtiein = tempfile.NamedTemporaryFile(delete=True)
@@ -143,6 +169,10 @@ def bowtie_search( sgrna_list, genome, bowtie_mode="searching" ): # returns dict
 	return found_locations
 
 def _read_ccds( fname ):
+	"""read ccds-format reference gene list
+	Args:
+		fname(string): ccds format is    chromosome	nc_accession	gene	gene_id	ccds_id	ccds_status	cds_strand	cds_from(0-index)	cds_to(0-index)	cds_locations	match_type
+	"""
 	fhandle = open( fname, "rU" )
 	genes = []
 	for line in fhandle:
@@ -163,6 +193,10 @@ def _read_ccds( fname ):
 	return genes
 
 def _read_refgene( fname ):
+	"""read refgene-format reference gene list
+	Args:
+		fname(string): refgene format is    bin name chr strand txStart txEnd cdsStart(multiples) cdsEnd(multiples)
+	"""
 	fhandle = open( fname, "rU" )
 	genes=[]
 	for line in fhandle:
@@ -176,9 +210,17 @@ def _read_refgene( fname ):
 	return genes
 
 def find_offtargets( sgrna_list, genelist="refgene", noncoding=True, mode="scoring", bowtie_genome="hg38_noM" ):
+	"""Finds guideRNA offtargets within a genome
+	Args:
+		sgrna_list([SgRna1, SgRna2,...]): guides for which to find offtargets
+		genelist(string): data file to use for reference list of gene locations. can be "refgene" or "ccds". TODO: change this to use new ensembl data.
+		noncoding(bool): use noncoding sequences when considering whether a guide falls within a gene?
+		mode(string): search for guides or score existing guides. can be "searching" or "scoring". searching cuts short bowtie search at 10 offtarget sites. scoring finds all offtarget sites.
+		bowtie_genome(string): bowtie index to use for finding offtargets.
+	"""
 	# run bowtie for protospacer, including PAM
 	if mode == "scoring" or mode == "searching":
-		genomic_sites = bowtie_search( sgrna_list, genome=bowtie_genome, bowtie_mode=mode )
+		genomic_sites = bowtie_search( sgrna_list, genome=bowtie_genome, mode=mode )
 	else:
 		print "Offtarget mode not recognized!"
 		return
