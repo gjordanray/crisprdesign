@@ -91,11 +91,11 @@ def GCcontent( seq ):
 	GC = (seq.count("G") + seq.count("C")) / float(len(seq))
 	return GC
 
-def bowtie_search( sgrna_list, genome, mode="searching" ): # returns dictionary of {protospacer+pam: GenomicLocations}
+def bowtie_search( sgrna_list, genome, max_matches ): # returns dictionary of {protospacer+pam: GenomicLocations}
 	"""Use bowtie to find where guides map to a genome. Called by find_offtargets()
 	Args:
 		sgrna_list([SgRna1, SgRna2,...]): guides for which to find offtargets
-		mode(string): search for guides or score existing guides. can be "searching" or "scoring". searching cuts short bowtie search at 10 offtarget sites. scoring finds all offtarget sites.
+		max_matches(int): maximum number of times a guide can match the genome before bowtie triages failure. use 0 to find all matches.
 		genome(string): bowtie index to use for finding offtargets.
 	"""
 
@@ -111,11 +111,9 @@ def bowtie_search( sgrna_list, genome, mode="searching" ): # returns dictionary 
 #	phred33String = '++++++++44444=======!4I'
 	antisense_phred33String = 'I4!=======44444++++++++' # use antisense pattern so bowtie 5' seed usage corresponds to stringent part of PAM+protospacer
 	phred33String = antisense_phred33String
-	bowtie_constant_options = ['bowtie', '--nomaqround', '--best', '-n 3', '-l 12', '-e 39', '-p '+str(ncpus), '--suppress', '1,6,7', '--chunkmbs', '256', genome ] #note '--chunkmbs 128' and '--suppress 5,6,7'is one option, but subprocess needs them separated. -l 12 -n 3 since phred33 scoring also means can have no more than 3 mismatches in 5' 12 bases
-	if mode == "scoring": # report all alignments
-		bowtie_constant_options.append( '-a' )
-	elif mode == "searching": # only report reads if <10 alignments
-		bowtie_constant_options.extend( ['-m', '10'] )
+	bowtie_constant_options = ['bowtie', '--nomaqround', '-a', '--best', '-n 3', '-l 12', '-e 39', '-p '+str(ncpus), '--suppress', '1,6,7', '--chunkmbs', '256', genome ] #note '--chunkmbs 128' and '--suppress 5,6,7'is one option, but subprocess needs them separated. -l 12 -n 3 since phred33 scoring also means can have no more than 3 mismatches in 5' 12 bases
+	if max_matches > 0:
+		bowtie_constant_options.extend( ['-m', str(max_matches)] )
 	
 	temp_bowtiein = tempfile.NamedTemporaryFile(delete=True)
 #	temp_bowtiein = open( "bowtie.in", mode="w")
@@ -227,21 +225,17 @@ def _read_refgene( fname ):
 	fhandle.close()
 	return genes
 
-def find_offtargets( sgrna_list, genelist="refgene", noncoding=True, mode="scoring", bowtie_genome="hg38_noM" ):
+def find_offtargets( sgrna_list, genelist="refgene", noncoding=True, max_matches=10, bowtie_genome="hg38_noM" ):
 	"""Finds guideRNA offtargets within a genome
 	Args:
 		sgrna_list([SgRna1, SgRna2,...]): guides for which to find offtargets
 		genelist(string): data file to use for reference list of gene locations. can be "refgene" or "ccds". TODO: change this to use new ensembl data.
 		noncoding(bool): use noncoding sequences when considering whether a guide falls within a gene?
-		mode(string): search for guides or score existing guides. can be "searching" or "scoring". searching cuts short bowtie search at 10 offtarget sites. scoring finds all offtarget sites.
+		max_matches(int): maximum number of times a guide can match the genome before bowtie triages failure. use 0 to find all matches.
 		bowtie_genome(string): bowtie index to use for finding offtargets.
 	"""
 	# run bowtie for protospacer, including PAM
-	if mode == "scoring" or mode == "searching":
-		genomic_sites = bowtie_search( sgrna_list, genome=bowtie_genome, mode=mode )
-	else:
-		print "Offtarget mode not recognized!"
-		return
+	genomic_sites = bowtie_search( sgrna_list, genome=bowtie_genome, max_matches=max_matches )
 	# offtargets are everything that's not the target_site
 	print "Parsing reference gene list...",
 	if genelist=="refgene":
