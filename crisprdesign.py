@@ -6,6 +6,7 @@ except ImportError:
 	vienna_loaded = False
 from Bio.Seq import Seq, MutableSeq
 from Bio.Alphabet import generic_dna, generic_rna
+from Bio.SeqFeature import SeqFeature, FeatureLocation
 import tempfile
 import subprocess
 import re
@@ -575,6 +576,7 @@ class SgRna:
 		# +20 if no microhomology found TODO
 		# ----
 		# major penalty if couldn't find target site in the genome:
+		# this can also happen if bowtie search failed due to too MANY matches (-m filter exceeded)
 		if not self.target_site:
 			print "Target site for %s not found in the genome!" % self.protospacer
 			score += 1000000
