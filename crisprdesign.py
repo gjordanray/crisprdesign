@@ -54,6 +54,22 @@ def find_guides( in_seq, sense=True, antisense=True, constant="GUUUUAGAGCUAGAAAU
 			sgs.append( sg )
 	return sgs
 
+def sg_to_seqfeature( target, sg ):
+	location = target.seq.find( sg.protospacer.back_transcribe() )
+	if location == -1:
+		strand = -1
+		location = target.seq.find( sg.protospacer.back_transcribe().reverse_complement() )
+	else:
+		strand = 1
+	if location == -1:
+		print location, sg.protospacer.back_transcribe().reverse_complement(), sg.target_seq
+		print "Could not find sg in target!"
+		return None
+	id = sg.protospacer
+	quals = { "protospacer": sg.protospacer, "score": sg.score }
+	feature = SeqFeature( FeatureLocation( location, location+len(sg.protospacer)), strand=strand, type="sgRNA", id=id, qualifiers=quals )
+	return feature
+
 def hamming_dist( str1, str2 ):
 	"""Find hamming distance of two sequences
 	Args:
