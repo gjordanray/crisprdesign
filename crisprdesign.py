@@ -216,6 +216,8 @@ def _read_refgene( fname ):
 	fhandle = open( fname, "rU" )
 	genes=[]
 	for line in fhandle:
+		if line[0] == "#":
+			continue
 		split = line.split('\t')
 		# format is    bin name chr strand txStart txEnd cdsStart(multiples) cdsEnd(multiples)
 		starts = [long(x) for x in split[6].rstrip(',').split(',')] # need to remove trailing comma
@@ -225,7 +227,7 @@ def _read_refgene( fname ):
 	fhandle.close()
 	return genes
 
-def find_offtargets( sgrna_list, genelist="refgene", noncoding=True, max_matches=10, bowtie_genome="hg38_noM" ):
+def find_offtargets( sgrna_list, genelist="refgene", noncoding=True, max_matches=10, bowtie_genome="hg38_noM", mode="cut" ):
 	"""Finds guideRNA offtargets within a genome
 	Args:
 		sgrna_list([SgRna1, SgRna2,...]): guides for which to find offtargets
@@ -233,6 +235,7 @@ def find_offtargets( sgrna_list, genelist="refgene", noncoding=True, max_matches
 		noncoding(bool): use noncoding sequences when considering whether a guide falls within a gene?
 		max_matches(int): maximum number of times a guide can match the genome before bowtie triages failure. use 0 to find all matches.
 		bowtie_genome(string): bowtie index to use for finding offtargets.
+		mode(string): how to determine offtargets. can be "cut" = look within entire transcribed region, "inhibit" = look -50 to +300 of TSS, "activate" = look -400 to -50 of TSS
 	"""
 	# run bowtie for protospacer, including PAM
 	genomic_sites = bowtie_search( sgrna_list, genome=bowtie_genome, max_matches=max_matches )
@@ -266,26 +269,34 @@ def find_offtargets( sgrna_list, genelist="refgene", noncoding=True, max_matches
 			gene_dict.setdefault(site,[])
 			# read refGene, find chromosome, is this index in a gene?
 			for gene in genes:
-				rg_gene, rg_chr, rg_start, rg_end = gene[0], gene[1], gene[3], gene[4]
-				if rg_chr == site.chr:
-					if noncoding:
-						if (rg_start <= site.start <= rg_end) or (rg_start <= site.end <= rg_end):
+				windows = [] # container used for search windows. does a guide lie within any of these ranges?
+				rg_gene, rg_chr, rg_strand, rg_start, rg_end = gene[0], gene[1], gene[2], gene[3], gene[4]
+				if rg_chr == site.chr: # guide lies on same chromosome as gene
+					if mode == "inhibit": # look -50 to +300 of TSS
+						if ( rg_strand ) == "+":
+							windows.append( (rg_start-50, rg_start+300) )
+						else:
+							windows.append( (rg_start+50, rg_start-300) )
+					elif mode == "activate": # look -400 to -50 of TSS
+						if ( rg_strand ) == "+":
+							windows.append( (rg_start-400, rg_start-50) )
+						else:
+							windows.append( (rg_start+400, rg_start+50) )
+					elif mode == "cut": # look through entire transcribed region
+						if noncoding:
+							windows.append( ( rg_start, rg_end ) )
+						else:
+							for exon in gene[5]:
+								windows.append( (exon[0], exon[1]) )
+					for window in windows:
+						if (window[0] <= site.start <= window[1]) or (window[0] <= site.end <= window[1]):
 							try:
 								gene_dict[site].append( rg_gene )
 								print rg_gene,
 							except KeyError:
 								continue
-					else:
-						for exon in gene[5]:
-							exon_start, exon_end = exon[0], exon[1]
-							if (exon_start <= site.start <= exon_end) or (exon_start <= site.end <= exon_end):
-								try:
-									gene_dict[site].append( rg_gene )
-									print rg_gene,
-								except KeyError:
-									continue
 									#print site, rg_gene
-								#print site, rg_gene
+									#print site, rg_gene
 			print
 		sg.offtarget_sites = gene_dict
 		print
